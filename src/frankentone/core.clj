@@ -1,6 +1,6 @@
-(ns frankentone.core)
-
-(defn foo
-  "I don't do a whole lot."
-  [x]
-  (println x "Hello, World!"))
+(ns frankentone.core
+  (:use frankentone.dsp
+        frankentone.ugens
+        frankentone.utils
+        frankentone.patterns
+        frankentone.instruments))
