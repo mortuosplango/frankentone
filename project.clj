@@ -46,5 +46,6 @@ options can be kept under `:disabled`."
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
+                 [seesaw "1.4.3"]
                  [overtone "0.8.1"]]
   :jvm-opts ~(jvm-opts))
