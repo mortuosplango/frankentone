@@ -100,22 +100,30 @@
 
 (defn reset-dsp!
   "Try to reset the dsp-function to the given function after checking
-  that it returns a number.
+  that it returns a double for every channel.
 
   The dsp function takes two arguments: the current system time in
   seconds and the channel"
   [new-dsp-fn]
   (if (fn? new-dsp-fn)
     (loop [i 0]
-      (let [test-output (new-dsp-fn (nows) i)]
+      (let [test-output (try
+                          (new-dsp-fn (nows) i)
+                          (catch Exception e
+                            (str "caught exception: " (.getMessage e)))
+                          )]
         (if (has-bad-value? test-output)
-            (prn "Can't reset! Function returns result of type "
-                 (type test-output))
+            (do (prn "Can't reset! Function returns result of type "
+                     (type test-output))
+                (if (string? test-output)
+                  false
+                  (type test-output)))
             (if (< (inc i) (.getChannels *default-output-format*))
               (recur (inc i))
-              (reset! *dsp-fun* new-dsp-fn)))))
-    (prn "Can't reset! Is not a function!")))
-
+              (do (reset! *dsp-fun* new-dsp-fn)
+                  true)))))
+    (do (prn "Can't reset! Is not a function!")
+        false)))
 
 (defn silence!
   "Resets the dsp-function to silence."
