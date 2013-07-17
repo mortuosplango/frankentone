@@ -50,7 +50,7 @@
 
 
 (defn has-bad-value?
-  "Returns true if in-val is NaN or Infinity."
+  "Returns true if in-val is a double and neither NaN or Infinity."
  ^Boolean [in-val]
  (or (not= (type in-val) java.lang.Double)
      (.isInfinite in-val)
