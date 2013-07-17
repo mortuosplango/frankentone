@@ -128,10 +128,8 @@
 (defn eval-string [to-eval]
   (let [result
         (try (binding [*out* (buffer-writer post-buffer)]
-               (. clojure.lang.Compiler
-                  load
-                  (new java.io.StringReader
-                       (str "(ns frankentone.live
+               (load-string
+                (str "(ns frankentone.live
   (:use frankentone.dsp
         frankentone.ugens
         frankentone.utils
@@ -139,11 +137,11 @@
         frankentone.instruments
         overtone.music.time
         clojure.repl)) \n" 
-                            to-eval))))
+                     to-eval)))
              (catch Exception e e))]
-    (set-status "Result: " result)
-    (.append post-buffer result)
-    (.append post-buffer "\n")
+    (invoke-later (set-status "Result: " result)
+                  (.append post-buffer (str result))
+                  (.append post-buffer "\n"))
     result))
 
 
@@ -151,10 +149,8 @@
   (text! documentation-buffer "")
   (let [result
         (try (binding [*out* (buffer-writer documentation-buffer)]
-               (. clojure.lang.Compiler
-                  load
-                  (new java.io.StringReader
-                       (str "(ns frankentone.live
+               (load-string
+                (str "(ns frankentone.live
   (:use frankentone.dsp
         frankentone.ugens
         frankentone.utils
@@ -162,8 +158,11 @@
         frankentone.instruments
         overtone.music.time
         clojure.repl)) \n"
-                        \( "doc " symbol \) ))))
+                     \( "doc " symbol \) )))
              (catch Exception e e))]
+    (invoke-later
+     (when (= (text documentation-buffer) "")
+       (text! documentation-buffer (str "No documentation for \"" symbol "\" found."))))
     result))
 
 
