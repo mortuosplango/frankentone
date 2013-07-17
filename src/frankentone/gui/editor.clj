@@ -223,10 +223,14 @@
                   position)]
        token)))
 
+
 (defn a-docstring [e]
   (let [to-look-up (get-token-at-caret editor -1)]
-    (when to-look-up
-        (show-documentation (.getLexeme to-look-up)))))
+    (when (and (not to-look-up)
+               (not (:type to-look-up))
+               (not= (:type to-look-up) TokenTypes/NULL))
+      (show-documentation (.getLexeme to-look-up)))))
+
 
 (def menus
   (let [a-new (action :handler a-new :name "New"
