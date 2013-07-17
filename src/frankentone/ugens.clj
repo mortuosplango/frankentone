@@ -16,7 +16,7 @@
   (+ (* (- end start) amt) start))
 
 
-(defn line_c [start end length]
+(defn line-c [start end length]
   (let [time (atom 0)]
     (fn []
       (let [current-time (swap! time + (/ 1.0 *sample-rate*))]
@@ -25,10 +25,10 @@
           end)))))
 
 
-(defn asr_c [attack-time sustain-time sustain-level release-time]
+(defn asr-c [attack-time sustain-time sustain-level release-time]
   (let [
-        a-line (line_c 0.0 sustain-level attack-time)
-        r-line (line_c sustain-level 0.0 release-time)
+        a-line (line-c 0.0 sustain-level attack-time)
+        r-line (line-c sustain-level 0.0 release-time)
         time (atom 0.0)]
     (fn []
       (let [current-time (swap! time + (/ 1.0 *sample-rate*))]
@@ -53,7 +53,7 @@
            (max min-val (min max-val input))))
 
 
-(defn osc_c
+(defn osc-c
   [^double in-phase]
   (let [phase (atom (double in-phase))]
     (fn ^double [^double amp ^double freq]
@@ -67,7 +67,7 @@
                       new-phase))))))))
 
 
-(defn sin-osc_c
+(defn sin-osc-c
   [in-phase]
   (let [phase (atom (double in-phase))
         table-size (double 8192)
@@ -87,16 +87,16 @@
                             new-phase)))))))))
 
 
-(defn square_c
+(defn square-c
   "square oscillator"
   [in-phase]
-  (let [osc (sin-osc_c in-phase)
+  (let [osc (sin-osc-c in-phase)
         n 50.0]
     (fn ^double [^double amp ^double freq]
       (* amp (Math/tanh (* n (osc 1.0 freq)))))))
 
 
-(defn saw_c
+(defn saw-c
   "saw oscillator"
   [in-phase]
   (let [phase (atom in-phase)
@@ -125,7 +125,7 @@
   (- (rand 2.0) 1.0))
 
 
-(defn delay_c
+(defn delay-c
   "IIR comb without interpolation.
 
   More efficient than comb if you don't need variable length"
@@ -143,7 +143,7 @@
        (+ x (* @y wet)))))
 
 
-(defn general-biquad_c [fn-coef]
+(defn general-biquad-c [fn-coef]
   (let [ y1 (atom 0.0)
         y2 (atom 0.0)
         x1 (atom 0.0)
@@ -182,14 +182,14 @@
         y))))
 
 
-(def lpf_c
+(def lpf-c
   "Lowpass Filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
-  (partial general-biquad_c
+  (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
                 a0 a1 a2]
@@ -201,14 +201,14 @@
              (reset! a2 (- 1.0 alpha)))))
 
 
-(def hpf_c
+(def hpf-c
   "Highpass Filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
-  (partial general-biquad_c
+  (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
                 a0 a1 a2]
@@ -220,14 +220,14 @@
              (reset! a2 (- 1.0 alpha)))))
 
 
-(def bpf_c
+(def bpf-c
   "Bandpass Filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
-  (partial general-biquad_c
+  (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
                 a0 a1 a2]
@@ -239,14 +239,14 @@
              (reset! a2 (- 1.0 alpha)))))
 
 
-(def notch_c
+(def notch-c
   "Notch filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
-  (partial general-biquad_c
+  (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
                 a0 a1 a2]
@@ -258,14 +258,14 @@
              (reset! a2 (- 1.0 alpha)))))
 
 
-(def apf_c
+(def apf-c
   "Allpass filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
-  (partial general-biquad_c
+  (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
                 a0 a1 a2]
@@ -277,7 +277,7 @@
              (reset! a2 (- 1.0 alpha)))))
 
 
-(defn pink_c
+(defn pink-c
   "Pink noise generator.
 
   Uses Paul Kellet's economy method
