@@ -226,9 +226,9 @@
 
 (defn a-docstring [e]
   (let [to-look-up (get-token-at-caret editor -1)]
-    (when (and (not to-look-up)
-               (not (:type to-look-up))
-               (not= (:type to-look-up) TokenTypes/NULL))
+    (when-not (or (not to-look-up)
+                  (not (:type to-look-up))
+                  (not= (:type to-look-up) TokenTypes/NULL))
       (show-documentation (.getLexeme to-look-up)))))
 
 
