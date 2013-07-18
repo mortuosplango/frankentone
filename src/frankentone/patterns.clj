@@ -53,7 +53,7 @@
   ([coll length offset]
      (play-pattern coll length offset :default))
   ([coll length offset instrument]
-     (play-pattern coll length offset :default (nows)))
+     (play-pattern coll length offset instrument (nows)))
   ([coll length offset instrument now]
      (doall (mapv #(do-play-pattern % length offset instrument now)
                   (remove #(= (first %) :|)
