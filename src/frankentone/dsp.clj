@@ -19,7 +19,7 @@
 (def current-time (atom 0.0))
 
 
-(def ^:dynamic *dsp-fun* (atom (let [pink (pink_c)
+(def ^:dynamic *dsp-fun* (atom (let [pink (pink-c)
                                      last-samp (atom 0.0)]
                                  (fn [x chan]
                                    (if (zero? chan)
