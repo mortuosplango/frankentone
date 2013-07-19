@@ -182,28 +182,28 @@
 
 
 (defn a-eval-selection [e]
-  (when-let [to-eval (.getSelectedText editor)]
-    (eval-string to-eval)))
+  (future (when-let [to-eval (.getSelectedText editor)]
+     (eval-string to-eval))))
 
 
 (defn a-eval-selection-or-line [e]
-  (if-let [to-eval (.getSelectedText editor)]
-    (eval-string to-eval)
-    (let [line (.getLineOfOffset editor (.getCaretPosition editor))]
-      (eval-string (subs (text editor)
-                         (.getLineStartOffset editor line)
-                         (.getLineEndOffset editor line)
-                         )))))
+  (future (if-let [to-eval (.getSelectedText editor)]
+     (eval-string to-eval)
+     (let [line (.getLineOfOffset editor (.getCaretPosition editor))]
+       (eval-string (subs (text editor)
+                          (.getLineStartOffset editor line)
+                          (.getLineEndOffset editor line)
+                          ))))))
 
 
 (defn a-eval-region-or-line [e]
-  (if-let [to-eval (get-region-boundaries editor (.getCaretPosition editor))]
-    (eval-string (apply subs (text editor) to-eval))
-    (let [line (.getLineOfOffset editor (.getCaretPosition editor))]
-      (eval-string (subs (text editor)
-                         (.getLineStartOffset editor line)
-                         (.getLineEndOffset editor line)
-                         )))))
+  (future (if-let [to-eval (get-region-boundaries editor (.getCaretPosition editor))]
+     (eval-string (apply subs (text editor) to-eval))
+     (let [line (.getLineOfOffset editor (.getCaretPosition editor))]
+       (eval-string (subs (text editor)
+                          (.getLineStartOffset editor line)
+                          (.getLineEndOffset editor line)
+                          ))))))
 
 
 (defn get-token-at-caret
