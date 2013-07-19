@@ -39,7 +39,7 @@
   (clear [this])
   (clear-queue [this])
   (kill-note [this id])
-  (note_c [this start-time
+  (note-c [this start-time
            freq amp dur kernel id])
   (new-note [this start-time freq amp dur]))
 
@@ -50,26 +50,14 @@
      notes
      note_kernel
      id]
-  clojure.lang.IFn
-  (invoke [_ time]
-    (while
-        (and
-         (not (.isEmpty note-starts))
-         (<= (scheduled-time (.peek note-starts)) time))
-      (println (swap! notes
-              merge
-              (note (.poll note-starts)))))
-    (reduce-kv (fn [^Double prev _ func]
-                 (+ prev (func time))) 0.0 @notes))
-  (applyTo [this args] (clojure.lang.AFn/applyToHelper this args))
-  
+
   IInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id) )
-  (note_c [this start-time
+  (note-c [this start-time
            freq amp dur kernel id]
                    (fn ^Double [^Double time]
                      (let [rel-time (- time start-time)]
@@ -84,7 +72,7 @@
       (.put note-starts
             (make-note start-time
                        [new-id
-                        (note_c this start-time
+                        (note-c this start-time
                                 freq amp dur
                                 (eval note_kernel)
                                 new-id)]))
@@ -105,7 +93,10 @@
 
 
 (defmacro definst
-  "Construct an instrument out of a note_kernel."
+  "Construct an instrument out of a note-kernel.
+
+  The note-kernel is a function that takes relative time, frequency,
+  amplitude and duration as arguments and returns sample values."
   [name note-kernel]
   `(let [
          old-inst# (get @instruments (keyword '~name))
@@ -125,20 +116,29 @@
                                   '~note-kernel
                                   id#)]
      (intern 'frankentone.instruments
-             (symbol (str '~name)) instrument#)
+             (symbol (str '~name)) (fn ^Double [^Double time#]
+                                     (while
+                                         (and
+                                          (not (.isEmpty note-starts#))
+                                          (<= (scheduled-time (.peek note-starts#)) time#))
+                                       (swap! notes#
+                                              merge
+                                              (note (.poll note-starts#))))
+                                     (reduce-kv (fn [^Double prev# _# func#]
+                                                  (+ prev# (func# time#))) 0.0 @notes#)))
      (swap! instruments
             assoc (keyword '~name)
             instrument#)))
 
 
 (definst default 
-  (let [lpf (lpf_c)
-        saws [ (saw_c 0.0)
-               (saw_c 0.0)
-               (saw_c 0.0)]
+  (let [lpf (lpf-c)
+        saws [ (saw-c 0.0)
+               (saw-c 0.0)
+               (saw-c 0.0)]
         saw-freq-adds [0 (rrand -0.4 0.0) (rrand -0.4 0.0)]
-        line (line_c (rrand 4000 5000) (rrand 2500 3200) 1.0)
-        asr (asr_c 0.01 0.2 0.7 0.3)
+        line (line-c (rrand 4000 5000) (rrand 2500 3200) 1.0)
+        asr (asr-c 0.01 0.2 0.7 0.3)
         samp (atom 0.0)
         ]
     (fn [^Double time ^Double freq ^Double amp ^Double dur]
