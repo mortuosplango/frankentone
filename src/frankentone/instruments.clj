@@ -98,37 +98,58 @@
   The note-kernel is a function that takes relative time, frequency,
   amplitude and duration as arguments and returns sample values."
   [name note-kernel]
-  `(let [
-         old-inst# (get @instruments (keyword '~name))
-         id# (atom (if old-inst#
-                     @(.id old-inst#)
-                     0))
-         note-starts#  (if old-inst#
-                         (PriorityBlockingQueue.
-                          (.note-starts old-inst#))
-                         (PriorityBlockingQueue.))
-         notes# (atom (if old-inst#
-                        @(.notes old-inst#)
-                        {}))
-         instrument# (Instrument. '~name
-                                  note-starts#
-                                  notes#
-                                  '~note-kernel
-                                  id#)]
-     (intern 'frankentone.instruments
-             (symbol (str '~name)) (fn ^Double [^Double time#]
-                                     (while
-                                         (and
-                                          (not (.isEmpty note-starts#))
-                                          (<= (scheduled-time (.peek note-starts#)) time#))
-                                       (swap! notes#
-                                              merge
-                                              (note (.poll note-starts#))))
-                                     (reduce-kv (fn [^Double prev# _# func#]
-                                                  (+ prev# (func# time#))) 0.0 @notes#)))
-     (swap! instruments
-            assoc (keyword '~name)
-            instrument#)))
+  `(when (let [kernel# (eval '~note-kernel)]
+           (if-not (fn? kernel#)
+             (do (println "Bad note kernel! Is not a function!")
+                 false)                             
+             (let [test-output# (try
+                                  (kernel# 0.0 440.0 1.0 2.0)
+                                  (catch Exception e#
+                                    (str "Caught exception: "
+                                         (.getMessage e#)))
+                                  )]
+               (if (has-bad-value? test-output#)
+                 (do
+                   (if (string? test-output#)
+                     (println "Bad note-kernel! "
+                              test-output#)
+                     (println "Bad note-kernel! "
+                              "Function returns result of type "
+                              (type test-output#)))
+                   false)
+                 true))))
+     (let [
+           old-inst# (get @instruments (keyword '~name))
+           id# (atom (if old-inst#
+                       @(.id old-inst#)
+                       0))
+           note-starts#  (if old-inst#
+                           (PriorityBlockingQueue.
+                            (.note-starts old-inst#))
+                           (PriorityBlockingQueue.))
+           notes# (atom (if old-inst#
+                          @(.notes old-inst#)
+                          {}))
+           instrument# (Instrument. '~name
+                                    note-starts#
+                                    notes#
+                                    '~note-kernel
+                                    id#)]
+       (intern 'frankentone.instruments
+               (symbol (str '~name))
+               (fn ^Double [^Double time#]
+                 (while
+                     (and
+                      (not (.isEmpty note-starts#))
+                      (<= (scheduled-time (.peek note-starts#)) time#))
+                   (swap! notes#
+                          merge
+                          (note (.poll note-starts#))))
+                 (reduce-kv (fn [^Double prev# _# func#]
+                              (+ prev# (func# time#))) 0.0 @notes#)))
+       (swap! instruments
+              assoc (keyword '~name)
+              instrument#))))
 
 
 (definst default 
