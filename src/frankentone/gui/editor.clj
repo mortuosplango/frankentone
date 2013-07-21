@@ -17,6 +17,7 @@
   (:import [java.io Writer])
   (:import
    (javax.swing.text DefaultEditorKit)
+   (java.awt Container)
    (org.fife.ui.rtextarea RTextAreaEditorKit)
    (org.fife.ui.rsyntaxtextarea RSyntaxTextAreaEditorKit)
    (org.fife.ui.rsyntaxtextarea RSyntaxUtilities)
@@ -28,34 +29,82 @@
 
 (native!)
 
+(defn pimp-editor-keymap [editor]
+  (let [input-map (.getInputMap editor)]
+    (doto input-map
+      (.put
+       (keystroke/keystroke "menu D")
+       "none")
+      (.put
+       (keystroke/keystroke "alt D")
+       DefaultEditorKit/deleteNextWordAction)
+      (.put
+       (keystroke/keystroke "alt DELETE")
+       RTextAreaEditorKit/rtaDeletePrevWordAction)
+      (.put
+       (keystroke/keystroke "control A")
+       DefaultEditorKit/beginLineAction)
+      (.put
+       (keystroke/keystroke "control E")
+       DefaultEditorKit/endLineAction)
+      (.put
+       (keystroke/keystroke "control P")
+       DefaultEditorKit/upAction)
+      (.put
+       (keystroke/keystroke "control N")
+       DefaultEditorKit/downAction)
+      (.put
+       (keystroke/keystroke "control F")
+       DefaultEditorKit/forwardAction)
+      (.put
+       (keystroke/keystroke "control B")
+       DefaultEditorKit/backwardAction)
+      (.put
+       (keystroke/keystroke "control D")
+       DefaultEditorKit/deleteNextCharAction)
+      (.put
+       (keystroke/keystroke "control K")
+       RTextAreaEditorKit/rtaDeleteRestOfLineAction))))
 
-(def current-file (atom (file (System/getProperty "user.home") ".ftscratch")))
 
-(when-not (.exists @current-file) (spit @current-file ""))
+(def open-files (atom {
+                       (.getPath (file (System/getProperty "user.home") ".ftscratch"))
+                       (file (System/getProperty "user.home") ".ftscratch")}))
 
-(def current-file-label (label :text @current-file :font "SANSSERIF-PLAIN-8"))
+(when-not (.exists (val (first @open-files))) (spit (val (first @open-files)) ""))
+
+(def current-file-label (label :text "" :font "SANSSERIF-PLAIN-8"))
 
 (defn make-editor-tab [file]
-  {:title (.getName file)
-   :tip (.getPath file)
-   :file file
-   :content  (RTextScrollPane.(rsyntax/text-area
-                               :text file
-                               :syntax :clojure
-                               :tab-size 4))})
+  (let [editor-tab (rsyntax/text-area
+                    :text file
+                    :syntax :clojure
+                    :tab-size 4)]
+    (pimp-editor-keymap editor-tab)
+    {:title (.getName file)
+     :tip (.getPath file)
+     :content  (RTextScrollPane. editor-tab)}))
 
 (def editor
   (tabbed-panel
    :id :tabs
    :placement :top
-   :tabs [
-          (make-editor-tab @current-file)
-          ]
-   ))
+   :tabs [ (make-editor-tab (val (first @open-files)))]))
 
 (defn get-active-editor-tab []
-  (:content (selection editor)))
+  (.getComponent (.getComponent (:content (selection editor)) 0) 0))
 
+(defn add-editor-tab-to-editor [editor-tab]
+  (doto editor
+    (.addTab (:title editor-tab)
+             (make-widget (:content editor-tab)))
+    (.setToolTipTextAt (dec (.getTabCount editor)) (:tip editor-tab))
+    (.setSelectedIndex (dec (.getTabCount editor)))))
+
+(defn get-current-file []
+  (val (find  @open-files (.getToolTipTextAt editor (.getSelectedIndex editor)))))
+
+;;(add-editor-tab-to-editor (make-editor-tab @current-file))
 
 (def post-buffer
   (text :multi-line? true :font "MONOSPACED-PLAIN-10"
@@ -102,38 +151,43 @@
            [(separator) "dock south"]
            [current-file-label "dock south"]]))
 
-
-(defn set-current-file [f] (swap! current-file (constantly f)))
-
-
 (defn select-file [type] (choose-file main-panel :type type))
 
 
 (defn a-new [e]
   (let [selected (select-file :save)]
-    (if (.exists @current-file)
+    (if (.exists selected)
       (alert "File already exists.")
-      (do (set-current-file selected)
-          (text! (get-active-editor-tab) "")
-          (set-status "Created a new file.")))))
+      (do
+        (swap! open-files assoc (.getPath selected) selected)
+        (spit selected "")
+        (add-editor-tab-to-editor
+         (make-editor-tab selected))
+          ;;(text! (get-active-editor-tab) "")
+        (set-status "Created a new file.")))))
 
 
 (defn a-open [e]
-  (let [selected (select-file :open)] (set-current-file selected))
-  (text! (get-active-editor-tab) (slurp @current-file))
-  (set-status "Opened " @current-file "."))
+  (let [selected (select-file :open)]
+    (swap! open-files assoc (.getPath selected) selected)
+    (add-editor-tab-to-editor
+     (make-editor-tab selected))
+    (set-status "Opened " selected ".")))
 
 
 (defn a-save [e]
-  (spit @current-file (text (get-active-editor-tab)))
-  (set-status "Wrote " @current-file "."))
+  (spit (get-current-file) (text (get-active-editor-tab)))
+  (set-status "Wrote " (get-current-file) "."))
 
 
 (defn a-save-as [e]
   (when-let [selected (select-file :save)]
-    (set-current-file selected)
-    (spit @current-file (text (get-active-editor-tab)))
-    (set-status "Wrote " @current-file ".")))
+    (swap! open-files dissoc (.getPath (get-current-file)))
+    (swap! open-files assoc (.getPath selected) selected)
+    (spit selected (text (get-active-editor-tab)))
+    (.setTitleAt editor (.getSelectedIndex editor) (.getName selected))
+    (.setToolTipTextAt editor (.getSelectedIndex editor) (.getPath selected))
+    (set-status "Wrote " selected ".")))
 
 
 (defn a-exit  [e] (dispose! e))
@@ -311,49 +365,10 @@
              (menu :text "Help")])))
 
 
-;; TODO should use https://github.com/daveray/seesaw/blob/develop/src/seesaw/keymap.clj
-;; (let [input-map (.getInputMap editor)]
-;;   (doto input-map
-;;     (.put
-;;      (keystroke/keystroke "menu D")
-;;      "none")
-;;     (.put
-;;      (keystroke/keystroke "alt D")
-;;      DefaultEditorKit/deleteNextWordAction)
-;;     (.put
-;;      (keystroke/keystroke "alt DELETE")
-;;      RTextAreaEditorKit/rtaDeletePrevWordAction)
-;;     (.put
-;;      (keystroke/keystroke "control A")
-;;      DefaultEditorKit/beginLineAction)
-;;     (.put
-;;      (keystroke/keystroke "control E")
-;;      DefaultEditorKit/endLineAction)
-;;     (.put
-;;      (keystroke/keystroke "control P")
-;;      DefaultEditorKit/upAction)
-;;     (.put
-;;      (keystroke/keystroke "control N")
-;;      DefaultEditorKit/downAction)
-;;     (.put
-;;      (keystroke/keystroke "control F")
-;;      DefaultEditorKit/forwardAction)
-;;     (.put
-;;      (keystroke/keystroke "control B")
-;;      DefaultEditorKit/backwardAction)
-;;     (.put
-;;      (keystroke/keystroke "control D")
-;;      DefaultEditorKit/deleteNextCharAction)
-;;     (.put
-;;      (keystroke/keystroke "control K")
-;;      RTextAreaEditorKit/rtaDeleteRestOfLineAction)))
+
 
 
 (defn run []
-  (add-watch
-   current-file
-   nil
-   (fn [_ _ _ new] (text! current-file-label (str new))))
   (->   (frame
        :title "Frankentone Editor"
        :content main-panel
