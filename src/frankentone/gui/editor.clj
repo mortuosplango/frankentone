@@ -212,7 +212,8 @@
              (catch Exception e e))]
     (invoke-later (set-status "Result: " result)
                   (.append post-buffer (str result))
-                  (.append post-buffer "\n"))
+                  (.append post-buffer "\n")
+                  (scroll! post-buffer :to :bottom))
     result))
 
 
