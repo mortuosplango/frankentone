@@ -161,3 +161,9 @@
   []
   (reset! *dsp-running* false))
 
+
+(defn kill-dsp
+  "Kill the dsp engine."
+  []
+  (stop-dsp)
+  (.stop @*dsp*))
