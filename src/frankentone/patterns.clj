@@ -2,7 +2,8 @@
 
 (ns frankentone.patterns
   (:use frankentone.instruments
-        frankentone.utils))
+        frankentone.utils
+        overtone.music.pitch))
 
 
 (declare play-pattern)
@@ -25,7 +26,7 @@
                   (if (number? inst)
                     (play-note (+ now offset 0.1
                                     (* beat note-length))
-                                 instrument inst 0.2 note-length))
+                                 instrument (midi->hz inst) 0.2 note-length))
                   )))
             coll (range len)))))
 
