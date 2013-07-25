@@ -13,25 +13,22 @@
   (atom {}))
 
 
-(defprotocol IInstNote
-  "A note played on an instrument."
-  (scheduled-time [this])
-  (note [this]))
+(def note-kernels
+  "Map of all registered note-kernels."
+  (atom {}))
 
 
-(defn make-note [time new-note]
-  (reify
-    java.lang.Comparable
-    (compareTo [this obj]
-      (let [other-time (scheduled-time obj)]
-        (if (< time other-time)
-          -1
-          (if (= time other-time)
-            0
-            1))))
-    IInstNote
-    (scheduled-time [this] time)
-    (note [this] new-note)) )
+(deftype InstNote
+ ;;   "A note played on an instrument."
+    [scheduled-time
+     note]
+  java.lang.Comparable
+  (compareTo [this obj]
+    (let [other-time (.scheduled-time ^InstNote obj)]
+      (cond
+       (< scheduled-time other-time) -1
+       (= scheduled-time other-time) 0
+       :else 1))))
 
 
 (defprotocol IInstrument
@@ -39,17 +36,14 @@
   (clear [this])
   (clear-queue [this])
   (kill-note [this id])
-  (note-c [this start-time
-           freq amp dur kernel id])
   (new-note [this start-time freq amp dur]))
 
 
 (deftype Instrument
     [name
-     note-starts
+     ^PriorityBlockingQueue note-starts
      notes
-     note_kernel
-     id
+     ^Long id
      function]
 
   IInstrument
@@ -57,27 +51,23 @@
     (reset! notes {})
     (.clear note-starts))
   (clear-queue [_] (.clear note-starts))
-  (kill-note [_ id] (swap! notes dissoc id) )
-  (note-c [this start-time
-           freq amp dur kernel id]
-                   (fn ^Double [^Double time]
-                     (let [rel-time (- time start-time)]
-                       (if (< rel-time dur)
-                         (kernel rel-time freq amp dur)
-                         (do
-                           (println (kill-note this id))
-                           0.0)))))
+  (kill-note [_ id] (swap! notes dissoc id))
   (new-note [this start-time freq amp dur]
     (let [new-id (keyword (str name "_"
-                               (swap! id inc)))]
+                               (swap! id inc)))
+          kernel (((keyword name) @note-kernels)
+                                freq amp dur)]
       (.put note-starts
-            (make-note start-time
+            (InstNote. start-time
                        [new-id
-                        (note-c this start-time
-                                freq amp dur
-                                (eval note_kernel)
-                                new-id)]))
-      [new-id @notes note-starts])))
+                        (fn ^Double [time]
+                          (let [rel-time (- time start-time)]
+                            (if (< rel-time dur)
+                              (kernel rel-time)
+                              (do
+                                (swap! notes dissoc new-id)
+                                0.0))))]))
+      new-id)))
 
 
 (defn play-note
@@ -96,19 +86,20 @@
 (defmacro definst
   "Construct an instrument out of a note-kernel.
 
-  The note-kernel is a function that takes relative time, frequency,
-  amplitude and duration as arguments and returns sample values."
+  The note-kernel is a function that takes frequency, amplitude and
+  duration as arguments and returns a function that takes relative
+  time, frequency, amplitude and duration and produces sample values."
   ([name note-kernel]
-     `(when (let [kernel# (eval '~note-kernel)]
+     `(when (let [kernel# ~note-kernel]
               (if-not (fn? kernel#)
                 (do (println "Bad note kernel! Is not a function!")
                     false)                             
                 (let [test-output# (try
-                                     (kernel# 0.0 440.0 1.0 2.0)
+                                     ((kernel# 440.0 1.0 2.0)
+                                      0.0)
                                      (catch Exception e#
                                        (str "Caught exception: "
-                                            (.getMessage e#)))
-                                     )]
+                                            (.getMessage e#))))]
                   (if (has-bad-value? test-output#)
                     (do
                       (if (string? test-output#)
@@ -119,67 +110,51 @@
                                  (type test-output#)))
                       false)
                     true))))
-        (let [
-              old-inst# (get @instruments (keyword '~name))
-              id# (atom (if old-inst#
-                          @(.id old-inst#)
-                          0))
-              note-starts#  (if old-inst#
-                              (PriorityBlockingQueue.
-                               (.note-starts old-inst#))
-                              (PriorityBlockingQueue.))
-              notes# (atom (if old-inst#
-                             @(.notes old-inst#)
-                             {}))
-              fn# (fn ^Double [^Double time#]
-                    (while
-                        (and
-                         (not (.isEmpty note-starts#))
-                         (<= (scheduled-time (.peek note-starts#)) time#))
-                      (swap! notes#
-                             merge
-                             (note (.poll note-starts#))))
-                    (reduce-kv (fn [^Double prev# _# func#]
-                                 (+ prev# (func# time#))) 0.0 @notes#))
-              fn# (fn ^Double [^Double time#]
-                    (while
-                        (and
-                         (not (.isEmpty note-starts#))
-                         (<= (scheduled-time (.peek note-starts#)) time#))
-                      (swap! notes#
-                             merge
-                             (note (.poll note-starts#))))
-                    (reduce-kv (fn [^Double prev# _# func#]
-                                 (+ prev# (func# time#))) 0.0 @notes#))
-              instrument# (Instrument. '~name
-                                       note-starts#
-                                       notes#
-                                       '~note-kernel
-                                       id#
-                                       fn#)]
-          (def ~name fn#)
-          (swap! instruments
-                 assoc (keyword '~name)
-                 instrument#)))))
+        (when-not (get @instruments (keyword '~name))
+          (let [id# (atom 0)
+                note-starts# (PriorityBlockingQueue.)
+                notes# (atom {})
+                fn# (fn ^Double [time#]
+                      (while
+                          (and
+                           (not (.isEmpty note-starts#))
+                           (<= (.scheduled-time ^InstNote (.peek note-starts#))
+                               time#))
+                        (swap! notes#
+                               merge
+                               (.note ^InstNote (.poll note-starts#))))
+                      (reduce-kv (fn [prev# _# func#]
+                                   (+ prev# (func# time#))) 0.0 @notes#))
+                instrument# (Instrument. '~name
+                                         note-starts#
+                                         notes#
+                                         id#
+                                         fn#)]
+            (def ~name fn#)
+            (swap! instruments
+                   assoc (keyword '~name)
+                   instrument#)))
+        (swap! note-kernels assoc (keyword '~name) ~note-kernel))))
 
 
 (definst default 
-  (let [lpf (lpf-c)
-        saws [ (saw-c 0.0)
-               (saw-c 0.0)
-               (saw-c 0.0)]
-        saw-freq-adds [0 (rrand -0.4 0.0) (rrand -0.4 0.0)]
-        line (line-c (rrand 4000 5000) (rrand 2500 3200) 1.0)
-        asr (asr-c 0.01 0.2 0.7 0.3)
-        samp (atom 0.0)
-        ]
-    (fn [^Double time ^Double freq ^Double amp ^Double dur]
-      (*
-       (asr)
-       (lpf (reduce + (mapv (fn [saw freq-add]
-                              (saw 0.3 (+ freq freq-add)))
-                            saws
-                            saw-freq-adds))
-            (line)
-            1.0)))))
+  (fn [freq amp dur]
+    (let [lpf (lpf-c)
+          saw1 (saw-c 0.0)
+          saw2 (saw-c 0.0)
+          saw3 (saw-c 0.0)
+          saw-freq-add2 (rrand 0.4)
+          saw-freq-add3 (rrand 0.4)
+          line (line-c (rrand 4000 5000) (rrand 2500 3200) 1.0)
+          asr (asr-c 0.01 (max 0.0 (- dur 0.11)) 0.6 0.1)]
+      (fn ^Double [time]
+        (+ (*
+          amp
+          (asr)
+          (lpf
+           (+ (saw1 0.3 freq)
+              (saw2 0.3 (+ freq saw-freq-add2))
+              (saw3 0.3 (+ freq saw-freq-add3)))
+           (line)
+           1.0)))))))
 
