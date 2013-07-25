@@ -53,8 +53,8 @@
   "Returns true if in-val is a double and neither NaN or Infinity."
  ^Boolean [in-val]
  (or (not= (type in-val) java.lang.Double)
-     (.isInfinite in-val)
-     (.isNaN in-val)))
+     (.isInfinite ^Double in-val)
+     (.isNaN ^Double in-val)))
 
 (defn filter-bad-value
   "Returns 0.0 if in-val is NaN or Infinity. If not, just returns in-val."
