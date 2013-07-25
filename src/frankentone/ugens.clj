@@ -5,7 +5,7 @@
   (:use frankentone.utils))
 
 
-(defn lerp
+(defmacro lerp
   "Calculates a number between two numbers at a specific increment. The
   amt parameter is the amount to interpolate between the two values
   where 0.0 equal to the first point, 0.1 is very near the first
@@ -13,50 +13,59 @@
   convenient for creating motion along a straight path and for drawing
   dotted lines."
   [start end amt]
-  (+ (* (- end start) amt) start))
+  `(+ (* (- ~end ~start) ~amt) ~start))
 
 
-(defn line-c [start end length]
-  (let [time (atom 0)]
-    (fn []
-      (let [current-time (swap! time + (/ 1.0 *sample-rate*))]
-        (if (< current-time length)
-          (lerp start end (/ current-time length))
-          end)))))
+(defn line-c
+  ([start end length]
+     (let [time (atom 0.0)
+           start (double start)
+           end (double end)
+           step (/ (/ 1.0 length) *sample-rate*)]
+       (fn ^double []
+         (let [current-time (swap! time + step)]
+           (if (< current-time 1.0)
+             (lerp start end current-time)
+             end))))))
 
 
-(defn asr-c [attack-time sustain-time sustain-level release-time]
-  (let [
-        a-line (line-c 0.0 sustain-level attack-time)
-        r-line (line-c sustain-level 0.0 release-time)
-        time (atom 0.0)]
-    (fn []
-      (let [current-time (swap! time + (/ 1.0 *sample-rate*))]
-        (if (< current-time attack-time)
-          (a-line)
-          (if (< current-time (+ attack-time sustain-time))
-            sustain-level
-            (r-line)))))))
+(defn asr-c
+  ( [attack-time sustain-time sustain-level release-time]
+      (let [
+            a-line (line-c 0.0 sustain-level attack-time)
+            r-line (line-c sustain-level 0.0 release-time)
+            attack-time (long (* attack-time *sample-rate*))
+            release-time (long (* release-time *sample-rate*))
+            attack+sustain-time (long (+ attack-time
+                                         (* sustain-time *sample-rate*)))
+            time (atom (double 0.0))]
+        (fn ^double []
+          (let [current-time (swap! time inc)]
+            (if (< current-time attack-time)
+              (a-line)
+              (if (< current-time attack+sustain-time)
+                sustain-level
+                (r-line))))))))
 
 
 (defn sine
   "Sine"
-  (^double [^double freq ^double phase]
+  (^double [freq phase]
            (Math/sin (* freq TAU phase))))
 
 
 (defn hardclip
   "Hard clip"
-  (^double [^double input]
+  (^double [input]
            (max -1.0 (min 1.0 input)))
-  (^double [^double input ^double min-val ^double max-val]
+  (^double [input min-val max-val]
            (max min-val (min max-val input))))
 
 
 (defn osc-c
-  [^double in-phase]
+  [in-phase]
   (let [phase (atom (double in-phase))]
-    (fn ^double [^double amp ^double freq]
+    (fn [amp freq]
       (* amp
          (Math/sin
           (swap! phase
@@ -75,7 +84,7 @@
         sine-table (double-array (vec (map
                                        #(Math/sin (* TAU (/ % table-size)))
                                        (range table-size))))]
-    (fn ^double [^double amp ^double freq]
+    (fn ^double [amp freq]
       (* amp
          (aget sine-table
                (unchecked-short
@@ -92,7 +101,7 @@
   [in-phase]
   (let [osc (sin-osc-c in-phase)
         n 50.0]
-    (fn ^double [^double amp ^double freq]
+    (fn ^double [amp freq]
       (* amp (Math/tanh (* n (osc 1.0 freq)))))))
 
 
@@ -103,7 +112,7 @@
         dp (atom 1.0)
         leak 0.995
         saw (atom 0.0)]
-    (fn ^double [^double amp ^double freq]
+    (fn ^double [amp freq]
       (let [qmax (* 0.5 (/ *sample-rate* freq))
             dc (/ -0.498 qmax)]
         (swap! phase #(+ % @dp))
@@ -131,12 +140,12 @@
   More efficient than comb if you don't need variable length"
   [max_delay]
   (let [
-        delay (int max_delay)
+        delay (int (Math/ceil (* max_delay *sample-rate*)))
         line (double-array delay 0.0)
         time (atom 0)
         n (atom 0)
         y (atom 0.0)]
-    (fn [^Double x wet feedback] 
+    (fn ^double [x wet feedback] 
        (reset! y (aget line (reset! n (mod @time delay))))
        (swap! time inc)
        (aset-double line @n (* feedback (+ x @y)))
@@ -144,7 +153,8 @@
 
 
 (defn general-biquad-c [fn-coef]
-  (let [ y1 (atom 0.0)
+  (let [
+        y1 (atom 0.0)
         y2 (atom 0.0)
         x1 (atom 0.0)
         x2 (atom 0.0)
@@ -155,31 +165,33 @@
         a1 (atom 0.0)
         a2 (atom 0.0)
         oldres (atom 0.0)
-        oldfreq (atom 0.0)]
-    (fn [x freq res]
+        oldfreq (atom 0.0)
+        omega-factor (double (/ TAU *sample-rate*))]
+    (fn ^double [in-x freq res]
       ;; if frequency changes
       ;; recalculate coefficients
-      (when (or (not= freq @oldfreq)
-                (not= res @oldres))
-        (reset! oldfreq freq)
-        (reset! oldres res)
-        (let [omega (* TAU (/ freq *sample-rate*))
-              sino (Math/sin omega)
-              coso (Math/cos omega)
-              alpha (/ sino (* 2.0 res))]
-         (fn-coef sino coso alpha
-                  b0 b1 b2
-                  a0 a1 a2)))
-      (let [y (- (+ (* (/ @b0 @a0) x)
-                    (* (/ @b1 @a0) @x1)
-                    (* (/ @b2 @a0) @x2))
-                 (* (/ @a1 @a0) @y1)
-                 (* (/ @a2 @a0) @y2))]
-        (reset! y2 @y1)
-        (reset! y1 y)
-        (reset! x2 @x1)
-        (reset! x1 x)
-        y))))
+      (let [x (double in-x)]
+        (when (or (not= freq @oldfreq)
+                  (not= res @oldres))
+          (reset! oldfreq freq)
+          (reset! oldres res)
+          (let [omega (* freq omega-factor)
+                sino (Math/sin omega)
+                coso (Math/cos omega)
+                alpha (/ sino (* 2.0 res))]
+            (fn-coef sino coso alpha
+                     b0 b1 b2
+                     a0 a1 a2)))
+        (let [y (- (+ (* (/ @b0 @a0) x)
+                      (* (/ @b1 @a0) @x1)
+                      (* (/ @b2 @a0) @x2))
+                   (* (/ @a1 @a0) @y1)
+                   (* (/ @a2 @a0) @y2))]
+          (reset! y2 @y1)
+          (reset! y1 y)
+          (reset! x2 @x1)
+          (reset! x1 x)
+          y)))))
 
 
 (def lpf-c
@@ -296,5 +308,5 @@
 
 
 (def sum-fns
-  (partial reduce (fn ^double [^double val item] (+ val (item)) ) 0.0))
+  (partial reduce (fn ^double [val item] (+ val (item)) ) 0.0))
 
