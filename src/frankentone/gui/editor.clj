@@ -166,18 +166,38 @@
           ;;(text! (get-active-editor-tab) "")
         (set-status "Created a new file.")))))
 
+(defn open-file [file]
+  (swap! open-files assoc (.getPath file) file)
+  (add-editor-tab-to-editor
+   (make-editor-tab file))
+  (set-status "Opened " file "."))
+
 
 (defn a-open [e]
   (let [selected (select-file :open)]
-    (swap! open-files assoc (.getPath selected) selected)
-    (add-editor-tab-to-editor
-     (make-editor-tab selected))
-    (set-status "Opened " selected ".")))
+    (open-file selected)))
 
 
 (defn a-save [e]
   (spit (get-current-file) (text (get-active-editor-tab)))
   (set-status "Wrote " (get-current-file) "."))
+
+
+(defn a-close-tab [e]
+  (if (> (.getTabCount editor) 1)
+    (invoke-now
+     (let [result
+           (-> (dialog :content "Save file before closing?"
+                       :type :question
+                       :option-type :yes-no-cancel)
+               pack! show!)]
+       (when (= result :success)
+         (a-save nil))
+       (when result
+         (swap! open-files dissoc (.getPath (get-current-file)))
+         (.remove editor (.getSelectedIndex editor)))))
+    (invoke-now
+     (alert "Can't close last tab."))))
 
 
 (defn a-save-as [e]
@@ -295,6 +315,23 @@
        token)))
 
 
+(defn a-open-source [e]
+  (let [to-look-up (get-token-at-caret (get-active-editor-tab) -1)]
+    (when-not (or (not to-look-up)
+                  (not (.type to-look-up))
+                  (= (.type to-look-up) TokenTypes/NULL))
+      (when-let [v (ns-resolve 'frankentone.live (symbol (.getLexeme to-look-up)))]
+        (if-let [filepath (:file (meta v))]
+          (when-let [sourcefile (.exists (file filepath))]
+            (println sourcefile)
+            (open-file (file filepath))
+            (.setCaretPosition (get-active-editor-tab)
+                               (.getLineStartOffset
+                                (get-active-editor-tab)
+                                (:line (meta v))))))
+        (set-status "Couldn't find source for " (str v) ".")))))
+
+
 (defn a-docstring [e]
   (let [to-look-up (get-token-at-caret (get-active-editor-tab) -1)]
     (when-not (or (not to-look-up)
@@ -315,6 +352,9 @@
         a-save-as (action :handler a-save-as :name "Save As"
                           :tip "Save the current file."
                           :key "menu shift S")
+        a-close-tab (action :handler a-close-tab :name "Close tab"
+                          :tip "Close the current tab."
+                          :key "menu W")
         a-exit (action :handler a-exit :name "Exit"
                        :tip "Exit the editor.")
         a-copy (action :handler a-copy :name "Copy"
@@ -338,13 +378,21 @@
                                          :key "menu E")
         a-docstring (action :handler a-docstring :name "Documentation for symbol"
                             :tip "Show documentation for symbol"
-                            :key "menu D")]
+                            :key "menu D")
+        a-open-source (action :handler a-open-source :name "Source for symbol"
+                            :tip "Look up implementation"
+                            :key "menu I")]
     (menubar
-     :items [(menu :text "File" :items [a-new a-open a-save a-save-as a-exit])
+     :items [(menu :text "File" :items [a-new a-open a-save a-save-as
+                                        a-close-tab
+                                        (separator)
+                                        a-exit])
              (menu :text "Edit" :items [a-copy a-cut a-paste])
              (menu :text "Code" :items [a-eval-selection-or-line
                                         a-eval-selection
-                                        a-eval-region-or-line])
+                                        a-eval-region-or-line
+                                        (separator)
+                                        a-open-source])
              (menu :text "Documentation" :items
                    (conj (mapv (fn [[namespace name]]
                             (menu :text name
@@ -360,13 +408,18 @@
                            ['frankentone.patterns "Patterns"]
                            ['frankentone.ugens "UGens"]
                            ['frankentone.utils "Utils"]
-                           ['overtone.music.time "Timing"]
+                           ['overtone.music.time "Overtone->Time"]
+                           ['overtone.music.pitch "Overtone->Pitch"]
                            ])
+                         (separator)
                          a-docstring))
-             (menu :text "Help")])))
-
-
-
+             (menu :text "Help"
+                   :items [(action :handler
+                                   (fn [e]
+                                     (open-file (file
+                                                 "src/frankentone/examples/getting-started.clj")))
+                                   :name "Getting started"
+                                   :tip "Open the tutorial.")])])))
 
 
 (defn run []
@@ -376,5 +429,3 @@
        :minimum-size [640 :by 480]
        :menubar menus) pack! show!))
 
-
-(run)
