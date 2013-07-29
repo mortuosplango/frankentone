@@ -5,7 +5,11 @@ Experimental library for live coding in clojure. Tries to play nice with overton
 
 ## Usage
 
-FIXME
+Clone this repository.
+
+"lein run" brings up the editor.
+
+There's a tutorial in "Help->Getting Started".
 
 ## License
 
