@@ -70,25 +70,24 @@
            p #(with-data-line [#^SourceDataLine source line]
                 (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
                 (while (deref *dsp-running*)
-                  (loop [c-time (double @current-time)]
-                    (dotimes [chan num-channels]
-                      (.putShort bbuffer
-                                 (unchecked-short
-                                  (* scaling-factor
-                                     (@atom-fn
-                                      c-time
-                                      chan)))))
-                    (if (.hasRemaining bbuffer)
-                      (recur (+ c-time time-step))
-                      (reset! current-time (+ time-step
-                                              c-time))))
-                  
-                  ;; play*
                   (let [audio-stream (AudioInputStream.
-                                       (java.io.ByteArrayInputStream.
-                                        (.array bbuffer))
-                                       *default-format*
-                                       -1)]
+                                      (java.io.ByteArrayInputStream.
+                                       (.array bbuffer))
+                                      *default-format*
+                                      -1)]
+                    (loop [c-time (double @current-time)]
+                      (dotimes [chan num-channels]
+                        (.putShort bbuffer
+                                   (unchecked-short
+                                    (* scaling-factor
+                                       (@atom-fn
+                                        c-time
+                                        chan)))))
+                      (if (.hasRemaining bbuffer)
+                        (recur (+ c-time time-step))
+                        (reset! current-time (+ time-step
+                                                c-time))))
+                    ;; play*
                     (loop [cnt (long 0)]
                       (when (> cnt -1)
                         (when (> cnt 0)
