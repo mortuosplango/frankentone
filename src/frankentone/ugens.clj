@@ -144,22 +144,26 @@
         dp (atom 1.0)
         leak 0.995
         saw (atom 0.0)
-        ]
+        half-sample-rate (* 0.5 *sample-rate*)
+        re-half-sample-rate (/ 1.0 (* 0.5 *sample-rate*))]
     (fn [amp freq]
-      (let [qmax (* 0.5 (/ *sample-rate* freq))
-            dc (/ -0.498 qmax)]
-        (swap! phase #(+ % @dp))
-        (if (< @phase 0.0)
-          (do (swap! phase #(- 0.0 %))
-              (swap! dp #(- 0.0 %)))
-          (when (> @phase qmax)
-            (swap! phase #(+ qmax (- qmax %)))
-            (swap! dp #(- 0.0 %))))
-        (let [x (max 0.000001 (* Math/PI @phase))]
-          (* amp (swap! saw #(* leak
-                                (+ %
-                                   dc
-                                   (/ (Math/sin x) x))))))))))
+      (let [x (max 0.000001
+                   (* Math/PI
+                      (swap! phase
+                             (fn [old-phase]
+                               (let [new-phase (+ old-phase @dp)]
+                                 (if (< new-phase 0.0)
+                                   (do (swap! dp #(- 0.0 %))
+                                       (- 0.0 new-phase))
+                                   (let [qmax (/ half-sample-rate freq)]
+                                     (if (> new-phase qmax)
+                                       (do (swap! dp #(- 0.0 %))
+                                           (+ qmax (- qmax new-phase)))
+                                       new-phase))))))))]
+        (* amp (swap! saw #(* leak
+                              (+ %
+                                 (* -0.498 freq re-half-sample-rate)
+                                 (/ (Math/sin x) x)))))))))
 
 
 (defn white-noise
@@ -205,13 +209,13 @@
       (let [x (double in-x)]
         (when (or (not= freq @oldfreq)
                   (not= res @oldres))
-          (reset! oldfreq freq)
-          (reset! oldres res)
-          (let [omega (* freq omega-factor)
-                sino (Math/sin omega)
-                coso (Math/cos omega)
-                alpha (/ sino (* 2.0 res))]
-            (fn-coef sino coso alpha
+          (let [omega (* (reset! oldfreq freq)
+                         omega-factor)
+                sino (Math/sin omega)]
+            (fn-coef sino
+                     (Math/cos omega)
+                     (/ sino (* 2.0
+                                (reset! oldres res)))
                      b0 b1 b2
                      re-a0 a1 a2)))
         (let [re-a0 @re-a0
@@ -261,9 +265,8 @@
            (fn [sino coso alpha
                 b0 b1 b2
                 re-a0 a1 a2]
-             (reset! b0 (/ (+ 1.0 coso) 2.0))
              (reset! b1 (* -1.0 (+ 1.0 coso)))
-             (reset! b2 @b0)
+             (reset! b2 (reset! b0 (/ (+ 1.0 coso) 2.0)))
              (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 (* -2.0 coso))
              (reset! a2 (- 1.0 alpha)))))
@@ -282,9 +285,8 @@
            (fn [sino coso alpha
                 b0 b1 b2
                 re-a0 a1 a2]
-             (reset! b0 alpha)
-             (reset! b1 0.0)
-             (reset! b2 (* -1.0 @b0))
+             ;;(reset! b1 0.0)
+             (reset! b2 (* -1.0 (reset! b0 alpha)))
              (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 (* -2.0 coso))
              (reset! a2 (- 1.0 alpha)))))
@@ -303,11 +305,9 @@
            (fn [sino coso alpha
                 b0 b1 b2
                 re-a0 a1 a2]
-             (reset! b0 1.0)
-             (reset! b1 (* -2.0 coso))
-             (reset! b2 @b0)
+             (reset! b2 (reset! b0 1.0))
              (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
-             (reset! a1 @b1)
+             (reset! a1 (reset! b1 (* -2.0 coso)))
              (reset! a2 (- 1.0 alpha)))))
 
 
@@ -325,10 +325,9 @@
                 b0 b1 b2
                 re-a0 a1 a2]
              (reset! b0 (- 1.0 alpha))
-             (reset! b1 (* -2.0 coso))
              (reset! b2 (+ 1.0 alpha))
              (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
-             (reset! a1 @b1)
+             (reset! a1 (reset! b1 (* -2.0 coso)))
              (reset! a2 (- 1.0 alpha)))))
 
 
