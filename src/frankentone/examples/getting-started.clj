@@ -32,7 +32,7 @@
 
 ;; some lovely clipnoise:
 (reset-dsp! (fn [time chan]
-	(rand-nth [-1.0 1.0])))
+	(* 0.1 (rand-nth [-1.0 1.0]))))
 
 
 ;; write your own saw wave
@@ -63,11 +63,11 @@
 
 ;; let's play an instrument instead!
 (reset-dsp! 
-	(let [prev (atom 0.0)] 
-		(fn [x chan] 
-			(if (zero? chan) 
-				(reset! prev (default x))
-				@prev))))
+ (let [prev (atom 0.0)] 
+   (fn [x chan] 
+     (if (zero? chan) 
+       (reset! prev (default x))
+       @prev))))
 
 (play-note (nows) :default 440 0.5 2.0)
 
@@ -89,12 +89,15 @@
 (definst my-inst 
 	(fn [freq amp dur]
         (fn [time]
-           (* amp (mod time 1.0) (square time freq )))))
+           (* amp (mod time 1.0) (saw time freq )))))
 
 ;; add instrument to dsp function
-(reset-dsp! (let [prev (atom 0.0)] (fn [x chan] (if (zero? chan) 
-	(reset! prev (+ (my-inst x) (default x)))
-	@prev))))
+(reset-dsp!
+ (let [prev (atom 0.0)]
+   (fn [x chan]
+     (if (zero? chan) 
+       (reset! prev (+ (my-inst x) (default x)))
+       @prev))))
 
 ;; and then play it
 (play-pattern [60 - 62 64 68 :|
