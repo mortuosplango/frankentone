@@ -13,23 +13,26 @@
   (:require [frankentone.patterns])
   (:require [frankentone.utils])
   (:require [frankentone.ugens])
+  (:require [frankentone.live])
   (:require [overtone.music.time])
   (:import [java.io Writer])
   (:import
    (javax.swing.text DefaultEditorKit)
    (java.awt Container)
-   (org.fife.ui.rtextarea RTextAreaEditorKit)
-   (org.fife.ui.rsyntaxtextarea RSyntaxTextAreaEditorKit)
-   (org.fife.ui.rsyntaxtextarea RSyntaxUtilities)
-   (org.fife.ui.rsyntaxtextarea RSyntaxTextAreaDefaultInputMap)
-   (org.fife.ui.rsyntaxtextarea TokenTypes)
-   (org.fife.ui.rtextarea RTextScrollPane)
+   (java.io File)
+   (org.fife.ui.rtextarea RTextScrollPane
+                          RTextAreaEditorKit)
+   (org.fife.ui.rsyntaxtextarea RSyntaxTextArea
+                                RSyntaxTextAreaEditorKit
+                                RSyntaxTextAreaDefaultInputMap
+                                RSyntaxUtilities
+                                TokenTypes)
    (org.fife.ui.rsyntaxtextarea.folding LispFoldParser)))
 
 
 (native!)
 
-(defn pimp-editor-keymap [editor]
+(defn pimp-editor-keymap [^RSyntaxTextArea editor]
   (let [input-map (.getInputMap editor)]
     (doto input-map
       (.put
@@ -71,11 +74,11 @@
                        (.getPath (file (System/getProperty "user.home") ".ftscratch"))
                        (file (System/getProperty "user.home") ".ftscratch")}))
 
-(when-not (.exists (val (first @open-files))) (spit (val (first @open-files)) ""))
+(when-not (.exists ^File (val (first @open-files))) (spit (val (first @open-files)) ""))
 
 (def current-file-label (label :text "" :font "SANSSERIF-PLAIN-8"))
 
-(defn make-editor-tab [file]
+(defn make-editor-tab [^File file]
   (let [editor-tab (rsyntax/text-area
                     :text file
                     :syntax :clojure
@@ -91,7 +94,7 @@
    :placement :top
    :tabs [ (make-editor-tab (val (first @open-files)))]))
 
-(defn get-active-editor-tab []
+(defn get-active-editor-tab ^RSyntaxTextArea []
   (.getComponent (.getComponent (:content (selection editor)) 0) 0))
 
 (defn add-editor-tab-to-editor [editor-tab]
@@ -101,8 +104,10 @@
     (.setToolTipTextAt (dec (.getTabCount editor)) (:tip editor-tab))
     (.setSelectedIndex (dec (.getTabCount editor)))))
 
-(defn get-current-file []
-  (val (find  @open-files (.getToolTipTextAt editor (.getSelectedIndex editor)))))
+(defn get-current-file ^File []
+  (val (find  @open-files
+              (.getToolTipTextAt editor
+                                 (.getSelectedIndex editor)))))
 
 ;;(add-editor-tab-to-editor (make-editor-tab @current-file))
 
@@ -117,9 +122,10 @@
 
 
 (def split-view (left-right-split editor
-                                  (top-bottom-split (scrollable post-buffer)
-                                                    (scrollable documentation-buffer)
-                                                    :divider-location 1/3)
+                                  (top-bottom-split
+                                   (scrollable post-buffer)
+                                   (scrollable documentation-buffer)
+                                   :divider-location 0.5)
                                   :divider-location 3/5))
 
 
@@ -151,11 +157,12 @@
            [(separator) "dock south"]
            [current-file-label "dock south"]]))
 
+
 (defn select-file [type] (choose-file main-panel :type type))
 
 
 (defn a-new [e]
-  (let [selected (select-file :save)]
+  (let [selected ^File (select-file :save)]
     (if (.exists selected)
       (alert "File already exists.")
       (do
@@ -166,11 +173,19 @@
           ;;(text! (get-active-editor-tab) "")
         (set-status "Created a new file.")))))
 
-(defn open-file [file]
-  (swap! open-files assoc (.getPath file) file)
-  (add-editor-tab-to-editor
-   (make-editor-tab file))
-  (set-status "Opened " file "."))
+
+(defn open-file [^File file]
+  (if (get @open-files (.getPath file))
+    (do (loop [i 0]
+       (if (= (.getToolTipTextAt editor i) (.getPath file))
+         (.setSelectedIndex editor i)
+         (when (< (inc i) (.getTabCount editor))
+           (recur (inc i)))))
+        (set-status (.getName file) " already opened. Tab is now selected."))
+    (do (swap! open-files assoc (.getPath file) file)
+        (add-editor-tab-to-editor
+         (make-editor-tab file))
+        (set-status "Opened " file "."))))
 
 
 (defn a-open [e]
@@ -201,7 +216,7 @@
 
 
 (defn a-save-as [e]
-  (when-let [selected (select-file :save)]
+  (when-let [selected ^File (select-file :save)]
     (swap! open-files dissoc (.getPath (get-current-file)))
     (swap! open-files assoc (.getPath selected) selected)
     (spit selected (text (get-active-editor-tab)))
@@ -252,13 +267,13 @@
         clojure.repl)) \n"
                      \( "doc " symbol \) )))
              (catch Exception e e))]
-    (invoke-later
-     (when (= (text documentation-buffer) "")
-       (text! documentation-buffer (str "No documentation for \"" symbol "\" found."))))
+    (when (= (text documentation-buffer) "")
+      (text! documentation-buffer
+             (str "No documentation for \"" symbol "\" found.")))
     result))
 
 
-(defn get-region-boundaries [editor pos]
+(defn get-region-boundaries [^RSyntaxTextArea editor pos]
   (when-let [region (first (let [folds (.getFolds (LispFoldParser.) editor)]
                              (doall (filter
                                      #(do
@@ -289,19 +304,22 @@
 
 
 (defn a-eval-region-or-line [e]
-  (future (if-let [to-eval (get-region-boundaries (get-active-editor-tab) (.getCaretPosition (get-active-editor-tab)))]
-     (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
-     (let [line (.getLineOfOffset (get-active-editor-tab) (.getCaretPosition (get-active-editor-tab)))]
-       (eval-string (subs (text (get-active-editor-tab))
-                          (.getLineStartOffset (get-active-editor-tab) line)
-                          (.getLineEndOffset (get-active-editor-tab) line)
-                          ))))))
+  (future (if-let [to-eval (get-region-boundaries
+                            (get-active-editor-tab)
+                            (.getCaretPosition (get-active-editor-tab)))]
+            (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
+            (let [line (.getLineOfOffset (get-active-editor-tab)
+                                         (.getCaretPosition (get-active-editor-tab)))]
+              (eval-string (subs (text (get-active-editor-tab))
+                                 (.getLineStartOffset (get-active-editor-tab) line)
+                                 (.getLineEndOffset (get-active-editor-tab) line)
+                                 ))))))
 
 
 (defn get-token-at-caret
-  ([editor]
+  ([^RSyntaxTextArea editor]
      (get-token-at-caret editor 0))
-  ([editor offset]
+  ([^RSyntaxTextArea editor offset]
      (let [position (max 0 (min (count (text editor))
                                 (+ (.getCaretPosition editor) offset)))
            token (RSyntaxUtilities/getTokenAtOffset
@@ -320,16 +338,20 @@
     (when-not (or (not to-look-up)
                   (not (.type to-look-up))
                   (= (.type to-look-up) TokenTypes/NULL))
-      (when-let [v (ns-resolve 'frankentone.live (symbol (.getLexeme to-look-up)))]
+      (if-let [v (ns-resolve 'frankentone.live (symbol (.getLexeme to-look-up)))]
         (if-let [filepath (:file (meta v))]
-          (when-let [sourcefile (.exists (file filepath))]
-            (println sourcefile)
-            (open-file (file filepath))
-            (.setCaretPosition (get-active-editor-tab)
-                               (.getLineStartOffset
-                                (get-active-editor-tab)
-                                (:line (meta v))))))
-        (set-status "Couldn't find source for " (str v) ".")))))
+          (let [sourcefile (file filepath)
+                alternative (file (str "src/" filepath))]
+            (if (or (.exists sourcefile) (.exists alternative))
+              (do (if (.exists sourcefile)
+                    (open-file sourcefile)
+                    (open-file alternative))
+                  (scroll! (get-active-editor-tab)
+                           :to [:line (max 0 (dec (:line (meta v))))]))
+              (set-status "Couldn't open source file " sourcefile
+                          " for " (str v) ".")))
+          (set-status "Couldn't find source for " (str v) "."))
+        (set-status "Couldn't find source for " (.getLexeme to-look-up) ".")))))
 
 
 (defn a-docstring [e]
@@ -338,6 +360,7 @@
                   (not (.type to-look-up))
                   (= (.type to-look-up) TokenTypes/NULL))
       (show-documentation (.getLexeme to-look-up)))))
+
 
 (def menus
   (let [a-new (action :handler a-new :name "New"
