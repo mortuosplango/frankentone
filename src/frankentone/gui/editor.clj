@@ -6,17 +6,13 @@
         seesaw.chooser
         seesaw.mig
         [clojure.java.io :only [file resource]])
-  (:require [seesaw.rsyntax :as rsyntax])
-  (:require [seesaw.keystroke :as keystroke])
-  (:require [frankentone.dsp :as dsp])
-  (:require [frankentone.instruments])
-  (:require [frankentone.patterns])
-  (:require [frankentone.utils])
-  (:require [frankentone.ugens])
-  (:require [frankentone.live])
-  (:require [overtone.music.time])
-  (:import [java.io Writer])
+  (:require overtone.music.time
+            [seesaw.rsyntax :as rsyntax]
+            [seesaw.keystroke :as keystroke]
+            [frankentone.dsp :as dsp]
+            [frankentone instruments patterns utils ugens live])
   (:import
+   (java.io Writer)
    (javax.swing.text DefaultEditorKit)
    (java.awt Container)
    (java.io File)
@@ -442,11 +438,17 @@
                                      (open-file (file
                                                  "src/frankentone/examples/getting-started.clj")))
                                    :name "Getting started"
-                                   :tip "Open the tutorial.")])])))
+                                   :tip "Open the tutorial.")
+                           (action :handler
+                                   (fn [e]
+                                     (open-file (file
+                                                 "src/frankentone/examples/instruments.clj")))
+                                   :name "Example instruments"
+                                   :tip "Open the example instruments.")])])))
 
 
 (defn run []
-  (->   (frame
+  (-> (frame
        :title "Frankentone Editor"
        :content main-panel
        :minimum-size [640 :by 480]

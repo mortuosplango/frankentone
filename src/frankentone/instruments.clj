@@ -2,10 +2,10 @@
 ;; https://github.com/digego/extempore/blob/master/libs/core/instruments.xtm
 
 (ns frankentone.instruments
-  (:use frankentone.ugens)
-  (:use frankentone.utils)
-  (:import [java.util.concurrent PriorityBlockingQueue])
-  (:import [java.lang Comparable]))
+  (:use frankentone.ugens
+        frankentone.utils)
+  (:import [java.util.concurrent PriorityBlockingQueue]
+           [java.lang Comparable]))
 
 
 (def instruments

@@ -8,8 +8,8 @@
              AudioInputStream
              AudioSystem
              SourceDataLine
-             TargetDataLine])
-   (:import [java.util Date]))
+             TargetDataLine]
+            [java.util Date]))
 
 
 (def ^:dynamic *dsp-running* (atom true))
