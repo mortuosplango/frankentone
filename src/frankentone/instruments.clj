@@ -114,7 +114,7 @@
           (let [id# (atom 0)
                 note-starts# (PriorityBlockingQueue.)
                 notes# (atom {})
-                fn# (fn ^Double [time#]
+                fn# (fn ^double [time#]
                       (while
                           (and
                            (not (.isEmpty note-starts#))
@@ -123,8 +123,9 @@
                         (swap! notes#
                                merge
                                (.note ^InstNote (.poll note-starts#))))
-                      (reduce-kv (fn [prev# _# func#]
-                                   (+ prev# (func# time#))) 0.0 @notes#))
+                      (reduce-kv (fn ^double [val# _# item#]
+                                   (+ val# (item# time#)))
+                                 0.0 @notes#))
                 instrument# (Instrument. '~name
                                          note-starts#
                                          notes#
@@ -147,7 +148,7 @@
           saw-freq-add3 (rrand 0.4)
           line (line-c (rrand 4000 5000) (rrand 2500 3200) 1.0)
           asr (asr-c 0.01 (max 0.0 (- dur 0.11)) 0.6 0.1)]
-      (fn ^Double [time]
+      (fn [time]
         (+ (*
           amp
           (asr)

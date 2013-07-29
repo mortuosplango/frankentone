@@ -4,6 +4,7 @@
          frankentone.utils
          frankentone.ugens)
    (:import [javax.sound.sampled
+             AudioFormat
              AudioInputStream
              AudioSystem
              SourceDataLine
@@ -47,7 +48,7 @@
   ([atom-fn & [listener]]
      (let [
            buffer-size 8192
-           num-channels (long (.getChannels *default-output-format*))
+           num-channels (long (.getChannels ^AudioFormat *default-output-format*))
 
            buffer-size-in-bytes (* buffer-size num-channels 2)
            buffer-size-in-secs (/ buffer-size *sample-rate*)
@@ -55,28 +56,35 @@
            line (make-line :output *default-output-format*
                            buffer-size-in-bytes)
 
+           scaling-factor (dec (Math/pow 2
+                                         (dec
+                                          (.getSampleSizeInBits
+                                           ^AudioFormat
+                                           *default-output-format*))))
+           
            play-buffer (byte-array buffer-size-in-bytes)
            bbuffer (java.nio.ByteBuffer/allocate buffer-size-in-bytes)
 
            time-step (double (/ 1.0 *sample-rate*))
-           
+
            p #(with-data-line [#^SourceDataLine source line]
                 (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
                 (while (deref *dsp-running*)
                   (loop [c-time (double @current-time)]
                     (dotimes [chan num-channels]
                       (.putShort bbuffer
-                                 (unchecked-scale-f->s
-                                  (@atom-fn
-                                   c-time
-                                   chan))))
+                                 (unchecked-short
+                                  (* scaling-factor
+                                     (@atom-fn
+                                      c-time
+                                      chan)))))
                     (if (.hasRemaining bbuffer)
                       (recur (+ c-time time-step))
                       (reset! current-time (+ time-step
                                               c-time))))
                   
                   ;; play*
-                  (let [ audio-stream (AudioInputStream.
+                  (let [audio-stream (AudioInputStream.
                                        (java.io.ByteArrayInputStream.
                                         (.array bbuffer))
                                        *default-format*

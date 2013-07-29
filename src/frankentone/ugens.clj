@@ -63,20 +63,48 @@
 
 
 (defn osc-c
+  "a sine oscillator
+
+  Returns a function with the following arguments: [amp freq]"
   [in-phase]
-  (let [phase (atom (double in-phase))]
+  (let [phase (atom (double in-phase))
+        freq-mul (double (/ TAU *sample-rate*))]
     (fn [amp freq]
       (* amp
          (Math/sin
           (swap! phase
                  #(let [new-phase
-                        (+ % (* TAU (/ freq *sample-rate*)))]
+                        (+ % (* freq freq-mul))]
                     (if (> new-phase Math/PI)
                       (- new-phase TAU)
                       new-phase))))))))
 
+(defn osc-fb-c
+  "a sine oscillator that has phase modulation feedback
+
+  Returns a function with the following arguments: [amp freq feedback]"
+  [in-phase]
+  (let [phase (atom (double in-phase))
+        prev (atom 0.0)
+        freq-mul (double (/ TAU *sample-rate*))]
+    (fn [amp freq feedback]
+      (* amp
+         (swap! prev
+                (fn [prev]
+                  (Math/sin
+                   (swap! phase
+                          #(let [new-phase
+                                 (+
+                                  (* feedback prev)
+                                  % (* freq freq-mul))]
+                             (if (> new-phase Math/PI)
+                               (- new-phase TAU)
+                               new-phase))))))))))
 
 (defn sin-osc-c
+  "a sine oscillator using a 8192 point wavetable
+
+  Returns a function with the following arguments: [amp freq]"
   [in-phase]
   (let [phase (atom (double in-phase))
         table-size (double 8192)
@@ -84,7 +112,7 @@
         sine-table (double-array (vec (map
                                        #(Math/sin (* TAU (/ % table-size)))
                                        (range table-size))))]
-    (fn ^double [amp freq]
+    (fn [amp freq]
       (* amp
          (aget sine-table
                (unchecked-short
@@ -97,22 +125,27 @@
 
 
 (defn square-c
-  "square oscillator"
+  "a square oscillator
+
+  Returns a function with the following arguments: [amp freq]"
   [in-phase]
   (let [osc (sin-osc-c in-phase)
         n 50.0]
     (fn ^double [amp freq]
-      (* amp (Math/tanh (* n (osc 1.0 freq)))))))
+      (* amp (Math/tanh (osc n freq))))))
 
 
 (defn saw-c
-  "saw oscillator"
+  "saw oscillator
+
+  Returns a function with the following arguments: [amp freq]"
   [in-phase]
   (let [phase (atom in-phase)
         dp (atom 1.0)
         leak 0.995
-        saw (atom 0.0)]
-    (fn ^double [amp freq]
+        saw (atom 0.0)
+        ]
+    (fn [amp freq]
       (let [qmax (* 0.5 (/ *sample-rate* freq))
             dc (/ -0.498 qmax)]
         (swap! phase #(+ % @dp))
@@ -137,19 +170,18 @@
 (defn delay-c
   "IIR comb without interpolation.
 
-  More efficient than comb if you don't need variable length"
+  More efficient than comb if you don't need variable length
+
+  Returns a function with the following arguments: [input wet feedback]"
   [max_delay]
   (let [
         delay (int (Math/ceil (* max_delay *sample-rate*)))
         line (double-array delay 0.0)
-        time (atom 0)
-        n (atom 0)
-        y (atom 0.0)]
-    (fn ^double [x wet feedback] 
-       (reset! y (aget line (reset! n (mod @time delay))))
-       (swap! time inc)
-       (aset-double line @n (* feedback (+ x @y)))
-       (+ x (* @y wet)))))
+        time (atom (long -1))]
+    (fn [input wet feedback]
+      (let [delayed (aget line (swap! time #(mod (inc %) delay)))]
+        (aset-double line @time (* feedback (+ input delayed)))
+        (+ input (* delayed wet))))))
 
 
 (defn general-biquad-c [fn-coef]
@@ -161,13 +193,13 @@
         b0 (atom 0.0)
         b1 (atom 0.0)
         b2 (atom 0.0)
-        a0 (atom 0.0)
+        re-a0 (atom 0.0) ;; reciprocal of a0
         a1 (atom 0.0)
         a2 (atom 0.0)
         oldres (atom 0.0)
         oldfreq (atom 0.0)
         omega-factor (double (/ TAU *sample-rate*))]
-    (fn ^double [in-x freq res]
+    (fn [in-x freq res]
       ;; if frequency changes
       ;; recalculate coefficients
       (let [x (double in-x)]
@@ -181,12 +213,13 @@
                 alpha (/ sino (* 2.0 res))]
             (fn-coef sino coso alpha
                      b0 b1 b2
-                     a0 a1 a2)))
-        (let [y (- (+ (* (/ @b0 @a0) x)
-                      (* (/ @b1 @a0) @x1)
-                      (* (/ @b2 @a0) @x2))
-                   (* (/ @a1 @a0) @y1)
-                   (* (/ @a2 @a0) @y2))]
+                     re-a0 a1 a2)))
+        (let [re-a0 @re-a0
+              y (- (+ (* @b0 re-a0 x)
+                      (* @b1 re-a0 @x1)
+                      (* @b2 re-a0 @x2))
+                   (* @a1 re-a0 @y1)
+                   (* @a2 re-a0 @y2))]
           (reset! y2 @y1)
           (reset! y1 y)
           (reset! x2 @x1)
@@ -200,17 +233,19 @@
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
-  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
+  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
+
+  Returns a function with the following arguments: [input freq Q]"
   (partial general-biquad-c
-           (fn [sino coso alpha
-                b0 b1 b2
-                a0 a1 a2]
-             (reset! b0 (/ (- 1.0 coso) 2.0))
-             (reset! b1 (- 1.0 coso))
-             (reset! b2 @b0)
-             (reset! a0 (+ 1.0 alpha))
-             (reset! a1 (* -2.0 coso))
-             (reset! a2 (- 1.0 alpha)))))
+             (fn [sino coso alpha
+                 b0 b1 b2
+                 re-a0 a1 a2]
+               (reset! b0 (/ (- 1.0 coso) 2.0))
+               (reset! b1 (- 1.0 coso))
+               (reset! b2 @b0)
+               (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
+               (reset! a1 (* -2.0 coso))
+               (reset! a2 (- 1.0 alpha)))))
 
 
 (def hpf-c
@@ -219,15 +254,17 @@
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
-  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
+  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
+
+  Returns a function with the following arguments: [input freq Q]"
   (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
-                a0 a1 a2]
+                re-a0 a1 a2]
              (reset! b0 (/ (+ 1.0 coso) 2.0))
              (reset! b1 (* -1.0 (+ 1.0 coso)))
              (reset! b2 @b0)
-             (reset! a0 (+ 1.0 alpha))
+             (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 (* -2.0 coso))
              (reset! a2 (- 1.0 alpha)))))
 
@@ -238,15 +275,17 @@
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
-  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
+  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
+
+  Returns a function with the following arguments: [input freq Q]"
   (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
-                a0 a1 a2]
+                re-a0 a1 a2]
              (reset! b0 alpha)
              (reset! b1 0.0)
              (reset! b2 (* -1.0 @b0))
-             (reset! a0 (+ 1.0 alpha))
+             (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 (* -2.0 coso))
              (reset! a2 (- 1.0 alpha)))))
 
@@ -257,15 +296,17 @@
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
-  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
+  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
+
+  Returns a function with the following arguments: [input freq Q]"
   (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
-                a0 a1 a2]
+                re-a0 a1 a2]
              (reset! b0 1.0)
              (reset! b1 (* -2.0 coso))
              (reset! b2 @b0)
-             (reset! a0 (+ 1.0 alpha))
+             (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 @b1)
              (reset! a2 (- 1.0 alpha)))))
 
@@ -276,15 +317,17 @@
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
 
-  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt"
+  http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
+
+  Returns a function with the following arguments: [input freq Q]"
   (partial general-biquad-c
            (fn [sino coso alpha
                 b0 b1 b2
-                a0 a1 a2]
+                re-a0 a1 a2]
              (reset! b0 (- 1.0 alpha))
              (reset! b1 (* -2.0 coso))
              (reset! b2 (+ 1.0 alpha))
-             (reset! a0 (+ 1.0 alpha))
+             (reset! re-a0 (/ 1.0 (+ 1.0 alpha)))
              (reset! a1 @b1)
              (reset! a2 (- 1.0 alpha)))))
 
@@ -293,7 +336,9 @@
   "Pink noise generator.
 
   Uses Paul Kellet's economy method
-  http://www.firstpr.com.au/dsp/pink-noise/"
+  http://www.firstpr.com.au/dsp/pink-noise/
+
+  Returns a function with the following arguments: []"
   []
   (let [
         b0 (atom 0.0)
@@ -307,6 +352,8 @@
                (* (white-noise) 0.1848))))))
 
 
-(def sum-fns
-  (partial reduce (fn ^double [val item] (+ val (item)) ) 0.0))
+(defmacro sum-fns
+  "Sums up a collection of functions"
+  [vector]
+  `(reduce-kv (fn [val# key# item#] (+ val# (item#))) 0.0 ~vector))
 
