@@ -2,9 +2,7 @@
 ;; https://github.com/daveray/seesaw/blob/develop/test/seesaw/test/examples/text_editor.clj
 
 (ns frankentone.gui.editor
-  (:use seesaw.core
-        seesaw.chooser
-        seesaw.mig
+  (:use [seesaw core chooser mig]
         [clojure.java.io :only [file resource]])
   (:require overtone.music.time
             [seesaw.rsyntax :as rsyntax]
