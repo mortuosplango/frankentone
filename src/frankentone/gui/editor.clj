@@ -261,9 +261,6 @@
         clojure.repl)) \n"
                      \( "doc " symbol \) )))
              (catch Exception e e))]
-    (when (= (text documentation-buffer) "")
-      (text! documentation-buffer
-             (str "No documentation for \"" symbol "\" found.")))
     result))
 
 

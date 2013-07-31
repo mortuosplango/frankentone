@@ -69,12 +69,14 @@
 
            p #(with-data-line [#^SourceDataLine source line]
                 (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
-                (while (deref *dsp-running*)
-                  (let [audio-stream (AudioInputStream.
-                                      (java.io.ByteArrayInputStream.
-                                       (.array bbuffer))
-                                      *default-format*
-                                      -1)]
+                (let [audio-stream (AudioInputStream.
+                                    (java.io.ByteArrayInputStream.
+                                     (.array bbuffer))
+                                    *default-format*
+                                    -1)]
+                  (while (deref *dsp-running*)
+                    ;;
+                    ;; (time
                     (loop [c-time (double @current-time)]
                       (dotimes [chan num-channels]
                         (.putShort bbuffer
@@ -87,14 +89,16 @@
                         (recur (+ c-time time-step))
                         (reset! current-time (+ time-step
                                                 c-time))))
+
                     ;; play*
                     (loop [cnt (long 0)]
                       (when (> cnt -1)
                         (when (> cnt 0)
                           (.write source play-buffer 0 cnt))
                         (recur (.read audio-stream play-buffer 0
-                                      buffer-size-in-bytes)))))
-                  (.clear bbuffer))
+                                      buffer-size-in-bytes))))
+                    (.clear bbuffer)
+                    (.reset audio-stream)))
                 (prn "dsp thread stopped"))]
        
        (prn "dsp thread started")
