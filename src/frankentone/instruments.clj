@@ -19,7 +19,7 @@
 
 
 (deftype InstNote
- ;;   "A note played on an instrument."
+    ;;   "A note played on an instrument."
     [scheduled-time
      note]
   java.lang.Comparable
@@ -56,7 +56,7 @@
     (let [new-id (keyword (str name "_"
                                (swap! id inc)))
           kernel (((keyword name) @note-kernels)
-                                freq amp dur)]
+                  freq amp dur)]
       (.put note-starts
             (InstNote. start-time
                        [new-id
@@ -73,13 +73,12 @@
 (defn play-note
   "Plays a note at the specified time with the specified parameters"
   [time instrument frequency amplitude duration]
-  (if (contains? @instruments instrument)
-    (let [instr (get @instruments instrument)]
-      (new-note instr
-                time
-                frequency
-                amplitude
-                duration))
+  (if-let [inst (get @instruments instrument)]
+    (new-note inst
+              time
+              frequency
+              amplitude
+              duration)
     (println "no such instrument " instrument "!")))
 
 
@@ -150,12 +149,12 @@
           asr (asr-c 0.01 (max 0.0 (- dur 0.11)) 0.6 0.1)]
       (fn [time]
         (+ (*
-          amp
-          (asr)
-          (lpf
-           (+ (saw1 0.3 freq)
-              (saw2 0.3 (+ freq saw-freq-add2))
-              (saw3 0.3 (+ freq saw-freq-add3)))
-           (line)
-           1.0)))))))
+            amp
+            (asr)
+            (lpf
+             (+ (saw1 0.3 freq)
+                (saw2 0.3 (+ freq saw-freq-add2))
+                (saw3 0.3 (+ freq saw-freq-add3)))
+             (line)
+             1.0)))))))
 
