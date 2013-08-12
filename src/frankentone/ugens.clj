@@ -101,27 +101,28 @@
                                (- new-phase TAU)
                                new-phase))))))))))
 
-(defn sin-osc-c
-  "a sine oscillator using a 8192 point wavetable
+(let [
+      table-size (double 8192)
+      sine-table (double-array (vec (map
+                                     #(Math/sin (* TAU (/ % table-size)))
+                                     (range table-size))))]
+  (defn sin-osc-c
+    "a sine oscillator using a 8192 point wavetable
 
   Returns a function with the following arguments: [amp freq]"
-  [in-phase]
-  (let [phase (atom (double in-phase))
-        table-size (double 8192)
-        cycle (double (/ table-size *sample-rate*))
-        sine-table (double-array (vec (map
-                                       #(Math/sin (* TAU (/ % table-size)))
-                                       (range table-size))))]
-    (fn [amp freq]
-      (* amp
-         (aget sine-table
-               (unchecked-short
-                (swap! phase
-                       #(let [new-phase
-                              (unchecked-add % (* cycle freq))]
-                          (if (> new-phase table-size)
-                            (unchecked-subtract new-phase table-size)
-                            new-phase)))))))))
+          [in-phase]
+          (let [phase (atom (double in-phase))
+                cycle (double (/ table-size *sample-rate*))]
+            (fn [amp freq]
+              (* amp
+                 (aget sine-table
+                       (unchecked-short
+                        (swap! phase
+                               #(let [new-phase
+                                      (unchecked-add % (* cycle freq))]
+                                  (if (> new-phase table-size)
+                                    (unchecked-subtract new-phase table-size)
+                                    new-phase))))))))))
 
 
 (defn square-c
