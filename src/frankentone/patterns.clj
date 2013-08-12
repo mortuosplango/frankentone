@@ -9,25 +9,36 @@
 (declare play-pattern)
 
 
+(def || :|)
+
+
 (defn- do-play-pattern [coll length offset instrument now]
   (let [len (count coll)
         note-length (* length (/ 1 len))]
     (doall (mapv
             (fn [inst beat]
-              (if (keyword? inst)
+              (cond
+               (keyword? inst)
+               (play-note (+ now offset 0.1
+                             (* beat note-length))
+                          inst 80 0.1 note-length)
+               (coll? inst)
+               (play-pattern inst note-length
+                             (+ offset (* beat note-length))
+                             instrument
+                             now)
+               (seq (filter #(= (.function (val %)) inst) @instruments))
+               (play-note (+ now offset 0.1
+                             (* beat note-length))
+                          (key (first
+                                (filter
+                                 #(= (.function (val %)) inst) @instruments)))
+                          80 0.1 note-length)
+               (number? inst)
                 (play-note (+ now offset 0.1
                               (* beat note-length))
-                           inst 80 0.1 note-length)
-                (if (coll? inst)
-                  (play-pattern inst note-length
-                                (+ offset (* beat note-length))
-                                instrument
-                                now)
-                  (if (number? inst)
-                    (play-note (+ now offset 0.1
-                                    (* beat note-length))
-                                 instrument (midi->hz inst) 0.2 note-length))
-                  )))
+                           instrument (midi->hz inst) 0.2 note-length)
+                  ))
             coll (range len)))))
 
 
@@ -39,14 +50,14 @@
 
   The item count in the collection corresponds to the length of the
   individual objects. E. g. to play two basedrum sounds with 1/2 cycle
-  length after each other: [:kick :kick]
+  length after each other: [:bd :bd]
+ö
+  To separate multiple voices, you can use || or :|
 
-  To separate multiple voices, you can use :|
+  [bd - || hh hh hh]
 
-  [:kick - :| :hat :hat :hat]
-
-  If the object is not a keyword, :| or a number, it will be treated
-  as a break."
+  If the object is not an instrument function, a keyword, || or a
+  number, it will be treated as a break."
   ([coll]
      (play-pattern coll 2.0))
   ([coll length]
