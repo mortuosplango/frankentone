@@ -5,7 +5,7 @@
         frankentone.instruments))
 
 
-(definst blub (fn [freq amp dur]
+(definst old-blub (fn [freq amp dur]
                 (let [osc (sin-osc-c 0.0)
                       asr (asr-c 0.01 0.1 0.5 dur)
                       square (square-c 0.0)
@@ -41,7 +41,7 @@
                              (osc-b 2000.0 ffreq)) 1.5))))))))
 
 
-(definst hihat (fn [freq amp dur]
+(definst hh (fn [freq amp dur]
                  (let [
                        hpf (hpf-c)
                        lpf (lpf-c)
@@ -95,7 +95,7 @@
                                  30.0 1.0))))))))
 
 
-(definst kick (fn [freq amp dur]
+(definst bd (fn [freq amp dur]
                 (let [
                       osc_a (sin-osc-c 1.4)
                       drop (line-c 3.0 1.0 0.1)

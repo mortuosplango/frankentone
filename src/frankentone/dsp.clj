@@ -76,7 +76,7 @@
                                     -1)]
                   (while (deref *dsp-running*)
                     ;;
-                    ;; (time
+                    ;; (time)
                     (loop [c-time (double @current-time)]
                       (dotimes [chan num-channels]
                         (.putShort bbuffer
