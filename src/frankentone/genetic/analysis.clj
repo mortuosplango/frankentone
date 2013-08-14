@@ -35,44 +35,46 @@
        (.mean fbin))))
 
 ;;;;;;;; based on http://inovation.tistory.com/archive/20110403
-(defn get-fft-mags
-  "Calculates the fft magnitudes for the given buffer"
-  ([buffer] (get-fft-mags buffer 1024))
-  ([buffer windowsize]
-     (let [
-           num-windows (int (Math/ceil
-                             (/ (count buffer) windowsize)))
-           ana-buf (vec (concat buffer
-                                (repeat
-                                 (mod (count buffer)
-                                      windowsize)
-                                 0)))]
-       (mapv (fn [buf]
-               (let [tmp-buf
-                     (float-array
-                      (incanter.core/mult
-                       (vec buf)
-                       hann-window))]
-                 ;; calc magnitudes
-                 (mapv
-                  (fn [[real imag]]
-                    ;; get magnitudes
-                    ;; clip on float max/min values to remove
-                    ;; potential inf values
-                    (max
-                     Float/MIN_VALUE
-                     (min Float/MAX_VALUE
-                          (Math/sqrt (+
-                                      (Math/pow real 2)
-                                      (Math/pow imag 2))))))
-                  (partition 2
-                             ;; perform fft
-                             (do
-                               (.realForward
-                                (FloatFFT_1D. windowsize)
-                                tmp-buf)
-                               tmp-buf)))))
-             (partition windowsize ana-buf)))))
+(let [mhann-window (memoize hann-window)]
+ (defn get-fft-mags
+   "Calculates the fft magnitudes for the given buffer"
+   ([buffer] (get-fft-mags buffer 1024))
+   ([buffer windowsize]
+      (let [
+            window (mapv #(mhann-window % windowsize) (range windowsize))
+            num-windows (int (Math/ceil
+                              (/ (count buffer) windowsize)))
+            ana-buf (vec (concat buffer
+                                 (repeat
+                                  (mod (count buffer)
+                                       windowsize)
+                                  0)))]
+        (mapv (fn [buf]
+                (let [tmp-buf
+                      (float-array
+                       (incanter.core/mult
+                        (vec buf)
+                        window))]
+                  ;; calc magnitudes
+                  (mapv
+                   (fn [[real imag]]
+                     ;; get magnitudes
+                     ;; clip on float max/min values to remove
+                     ;; potential inf values
+                     (max
+                      Float/MIN_VALUE
+                      (min Float/MAX_VALUE
+                           (Math/sqrt (+
+                                       (Math/pow real 2)
+                                       (Math/pow imag 2))))))
+                   (partition 2
+                              ;; perform fft
+                              (do
+                                (.realForward
+                                 (FloatFFT_1D. windowsize)
+                                 tmp-buf)
+                                tmp-buf)))))
+              (partition windowsize ana-buf))))))
 
 (defn get-fft-weights
   "Returns the weights for the given fft magnitudes."
