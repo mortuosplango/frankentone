@@ -88,3 +88,6 @@
 (defn unchecked-scale-f->s [f]
   "Scale a float value to a short value without range checking."
   (unchecked-short (* f scaling-factor)))
+
+;;debugging parts of expressions
+(defmacro dbg[x] `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
