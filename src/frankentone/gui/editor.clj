@@ -122,7 +122,6 @@
                                    :divider-location 0.5)
                                   :divider-location 3/5))
 
-
 (defn buffer-writer [buffer]
   (proxy [java.io.StringWriter] []
     (close [])
@@ -247,11 +246,11 @@
 
 
 (defn show-documentation [symbol]
-  (text! documentation-buffer "")
   (let [result
-        (try (binding [*out* (buffer-writer documentation-buffer)]
-               (load-string
-                (str "(ns frankentone.live
+        (with-out-str
+          (try 
+            (load-string
+             (str "(ns frankentone.live
   (:use frankentone.dsp
         frankentone.ugens
         frankentone.utils
@@ -259,9 +258,13 @@
         frankentone.instruments
         overtone.music.time
         clojure.repl)) \n"
-                     \( "doc " symbol \) )))
-             (catch Exception e e))]
-    result))
+                  \( "doc " symbol \) ))
+            (catch Exception e e)))]
+    (if (= result "")
+      (text! documentation-buffer (str
+                                   "No documentation found for "
+                                   symbol "."))
+      (text! documentation-buffer result))))
 
 
 (defn get-region-boundaries [^RSyntaxTextArea editor pos]
