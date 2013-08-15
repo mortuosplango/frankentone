@@ -122,17 +122,14 @@
                                    :divider-location 0.5)
                                   :divider-location 3/5))
 
-(defn buffer-writer [buffer]
-  (proxy [java.io.StringWriter] []
-    (close [])
-    (flush [])
-    (write
-      ([thing]
-         (invoke-later
-          (.append buffer thing)))
-      ([thing start end]
-         (invoke-later
-          (.append buffer (subs (str thing) start end)))))))
+
+(defmacro with-out-str-and-value
+  [& body]
+  `(let [s# (new java.io.StringWriter)]
+     (binding [*out* s#]
+       (let [v# ~@body]
+         (vector (str s#)
+                 v#)))))
 
 
 (def status-label (label :text ""))
@@ -226,9 +223,10 @@
 
 (defn eval-string [to-eval]
   (let [result
-        (try (binding [*out* (buffer-writer post-buffer)]
-               (load-string
-                (str "(ns frankentone.live
+        (with-out-str-and-value
+          (try 
+            (load-string
+             (str "(ns frankentone.live
   (:use frankentone.dsp
         frankentone.ugens
         frankentone.utils
@@ -236,11 +234,14 @@
         frankentone.instruments
         overtone.music.time
         clojure.repl)) \n" 
-                     to-eval)))
-             (catch Exception e e))]
-    (invoke-later (set-status "Result: " result)
-                  (.append post-buffer (str result))
-                  (.append post-buffer "\n")
+                  to-eval))
+            (catch Exception e e)))]
+    (invoke-later (set-status "Result: " (last result))
+                  (.append post-buffer
+                           (str
+                            (when (not= (first result) "")
+                              (str (first result) "\n")) 
+                            (last result) "\n"))
                   (scroll! post-buffer :to :bottom))
     result))
 
