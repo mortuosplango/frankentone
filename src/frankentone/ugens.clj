@@ -108,7 +108,8 @@
       sine-table (double-array (vec (map
                                      #(Math/sin (* TAU (/ % table-size)))
                                      (range table-size))))
-      inc-phase (fn [old-phase]
+      cycle (double (/ table-size *sample-rate*))
+      inc-phase (fn [old-phase freq]
                   (let [new-phase
                         (unchecked-add old-phase (* cycle freq))]
                     (if (> new-phase table-size)
@@ -119,12 +120,11 @@
 
   Returns a function with the following arguments: [amp freq]"
           [in-phase]
-          (let [phase (atom (double in-phase))
-                cycle (double (/ table-size *sample-rate*))]
+          (let [phase (atom (double in-phase))]
             (fn ^double [amp freq]
               (* amp
                  (aget sine-table
-                       (swap! phase inc-phase)))))))
+                       (swap! phase inc-phase freq)))))))
 
 
 (defn square-c
@@ -170,9 +170,9 @@
                            (/ (Math/sin x) x)))))))))
 
 
-(defn white-noise
-  ^double []
-  (dec (rand 2.0)))
+(definline white-noise
+   []
+  `(dec (rand 2.0)))
 
 
 (defn delay-c
@@ -345,10 +345,10 @@
   Returns a function with the following arguments: []"
   []
   (let [
-        b0 (atom 0.0)
-        b1 (atom 0.0)
-        b2 (atom 0.0)] 
-    (fn []
+        b0 (atom (double 0.0))
+        b1 (atom (double 0.0))
+        b2 (atom (double 0.0))] 
+    (fn ^double []
       (* 0.33 (+
                (swap! b0 #(+ (* % 0.99765) (* (white-noise) 0.0555179)))
                (swap! b1 #(+ (* % 0.96300) (* (white-noise) 0.2965164)))
@@ -356,7 +356,7 @@
                (* (white-noise) 0.1848))))))
 
 
-(defmacro sum-fns
+(definline sum-fns
   "Sums up a collection of functions"
   [vector]
   `(reduce-kv (fn [val# key# item#] (+ val# (item#))) 0.0 ~vector))
