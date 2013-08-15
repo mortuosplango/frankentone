@@ -17,28 +17,27 @@
         note-length (* length (/ 1 len))]
     (doall (mapv
             (fn [inst beat]
-              (cond
-               (keyword? inst)
-               (play-note (+ now offset 0.1
-                             (* beat note-length))
-                          inst 80 0.1 note-length)
-               (coll? inst)
-               (play-pattern inst note-length
-                             (+ offset (* beat note-length))
-                             instrument
-                             now)
-               (seq (filter #(= (.function (val %)) inst) @instruments))
-               (play-note (+ now offset 0.1
-                             (* beat note-length))
-                          (key (first
-                                (filter
-                                 #(= (.function (val %)) inst) @instruments)))
-                          80 0.1 note-length)
-               (number? inst)
-                (play-note (+ now offset 0.1
-                              (* beat note-length))
-                           instrument (midi->hz inst) 0.2 note-length)
-                  ))
+              (let [inst-fn (filter #(= (.getFunction (val %)) inst) @instruments)]
+                (cond
+                 (seq inst-fn)
+                 (play-note (+ now offset 0.1
+                               (* beat note-length))
+                            (key (first inst-fn))
+                            80 0.1 note-length)
+                 (keyword? inst)
+                 (play-note (+ now offset 0.1
+                               (* beat note-length))
+                            inst 80 0.1 note-length)
+                 (coll? inst)
+                 (play-pattern inst note-length
+                               (+ offset (* beat note-length))
+                               instrument
+                               now)
+                 (number? inst)
+                 (play-note (+ now offset 0.1
+                               (* beat note-length))
+                            instrument (midi->hz inst) 0.2 note-length)
+                 )))
             coll (range len)))))
 
 

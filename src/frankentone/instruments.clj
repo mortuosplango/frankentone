@@ -19,7 +19,6 @@
 
 
 (deftype InstNote
-    ;;   "A note played on an instrument."
     [scheduled-time
      note]
   java.lang.Comparable
@@ -33,7 +32,20 @@
   (clear [this])
   (clear-queue [this])
   (kill-note [this id])
-  (new-note [this start-time freq amp dur]))
+  (new-note [this start-time freq amp dur])
+  (play [this time])
+  (setFunction [this function])
+  (getFunction [this]))
+
+
+(defn reduce-instruments ^double [time coll]
+  (reduce-kv (fn ^double [val _ func] (+ val (func time))) 0.0 coll))
+
+
+(defn note-due? [note-starts time]
+    (some-> ^InstNote (.peek ^PriorityBlockingQueue note-starts)
+          .scheduled-time
+          (<= time)))
 
 
 (deftype Instrument
@@ -41,12 +53,25 @@
      ^PriorityBlockingQueue note-starts
      notes
      ^Long id
-     function]
+     ^{:volatile-mutable true} function]
 
   IInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
+  (play ^double [_ current-time] 
+    (reduce-instruments
+     current-time
+     (if-not (note-due? note-starts current-time)
+       @notes
+       (swap! notes
+              #(apply merge %
+                      (.note ^InstNote (.poll note-starts))
+                      (for [starts note-starts
+                            :while (<= (.scheduled-time
+                                        ^InstNote starts)
+                                       current-time)]
+                        (.note ^InstNote (.poll note-starts))))))))
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id))
   (new-note [this start-time freq amp dur]
@@ -57,14 +82,16 @@
       (.put note-starts
             (InstNote. start-time
                        [new-id
-                        (fn ^Double [time]
+                        (fn ^double [time]
                           (let [rel-time (- time start-time)]
                             (if (< rel-time dur)
                               (kernel rel-time)
                               (do
                                 (swap! notes dissoc new-id)
                                 0.0))))]))
-      new-id)))
+      new-id))
+  (setFunction [_ in-func] (set! function in-func))
+  (getFunction [_] function))
 
 
 (defn play-note
@@ -79,59 +106,49 @@
     (println "no such instrument " instrument "!")))
 
 
+(defn kernel-good? [note-kernel]
+  (if-not (fn? note-kernel)
+    (do (println "Bad note kernel! Is not a function!")
+        false)                             
+    (let [test-output# (try
+                         ((note-kernel 440.0 1.0 2.0)
+                          0.0)
+                         (catch Exception e#
+                           (str "Caught exception: "
+                                (.getMessage e#))))]
+      (if (has-bad-value? test-output#)
+        (do
+          (if (string? test-output#)
+            (println "Bad note-kernel! "
+                     test-output#)
+            (println "Bad note-kernel! "
+                     "Function returns result of type "
+                     (type test-output#)))
+          false)
+        true))))
+
+
 (defmacro definst
   "Construct an instrument out of a note-kernel.
 
   The note-kernel is a function that takes frequency, amplitude and
   duration as arguments and returns a function that takes relative
-  time, frequency, amplitude and duration and produces sample values."
+  time and produces sample values."
   ([name note-kernel]
-     `(when (let [kernel# ~note-kernel]
-              (if-not (fn? kernel#)
-                (do (println "Bad note kernel! Is not a function!")
-                    false)                             
-                (let [test-output# (try
-                                     ((kernel# 440.0 1.0 2.0)
-                                      0.0)
-                                     (catch Exception e#
-                                       (str "Caught exception: "
-                                            (.getMessage e#))))]
-                  (if (has-bad-value? test-output#)
-                    (do
-                      (if (string? test-output#)
-                        (println "Bad note-kernel! "
-                                 test-output#)
-                        (println "Bad note-kernel! "
-                                 "Function returns result of type "
-                                 (type test-output#)))
-                      false)
-                    true))))
+     `(when (kernel-good? ~note-kernel)
+        (swap! note-kernels assoc (keyword '~name) ~note-kernel)
         (when-not (get @instruments (keyword '~name))
-          (let [id# (atom 0)
-                note-starts# (PriorityBlockingQueue.)
-                notes# (atom {})
-                fn# (fn ^double [time#]
-                      (while
-                          (and
-                           (not (.isEmpty note-starts#))
-                           (<= (.scheduled-time ^InstNote (.peek note-starts#))
-                               time#))
-                        (swap! notes#
-                               merge
-                               (.note ^InstNote (.poll note-starts#))))
-                      (reduce-kv (fn ^double [val# _# item#]
-                                   (+ val# (item# time#)))
-                                 0.0 @notes#))
-                instrument# (Instrument. '~name
-                                         note-starts#
-                                         notes#
-                                         id#
-                                         fn#)]
+          (let [instrument# (Instrument. '~name
+                                         (PriorityBlockingQueue.)
+                                         (atom {})
+                                         (atom (long 0))
+                                         nil)
+                fn# (fn ^double [time#] (.play ^Instrument instrument# time#))]
+            (.setFunction instrument# fn#)
             (def ~name fn#)
             (swap! instruments
                    assoc (keyword '~name)
-                   instrument#)))
-        (swap! note-kernels assoc (keyword '~name) ~note-kernel))))
+                   instrument#))))))
 
 
 (definst default 
