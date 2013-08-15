@@ -24,11 +24,8 @@
      note]
   java.lang.Comparable
   (compareTo [this obj]
-    (let [other-time (.scheduled-time ^InstNote obj)]
-      (cond
-       (< scheduled-time other-time) -1
-       (= scheduled-time other-time) 0
-       :else 1))))
+    (compare scheduled-time
+             (.scheduled-time ^InstNote obj))))
 
 
 (defprotocol IInstrument
