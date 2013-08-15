@@ -30,7 +30,7 @@
 
 
 (defn asr-c
-  ( [attack-time sustain-time sustain-level release-time]
+  ([attack-time sustain-time sustain-level release-time]
       (let [
             a-line (line-c 0.0 sustain-level attack-time)
             r-line (line-c sustain-level 0.0 release-time)
@@ -69,15 +69,17 @@
   [in-phase]
   (let [phase (atom (double in-phase))
         freq-mul (double (/ TAU *sample-rate*))]
-    (fn [amp freq]
+    (fn ^double [amp freq]
       (* amp
          (Math/sin
           (swap! phase
-                 #(let [new-phase
-                        (+ % (* freq freq-mul))]
-                    (if (> new-phase Math/PI)
-                      (- new-phase TAU)
-                      new-phase))))))))
+                 (fn ^double [old-phase]
+                   (let [new-phase
+                         (+ old-phase (* freq freq-mul))]
+                     (if (> new-phase Math/PI)
+                       (- new-phase TAU)
+                       new-phase)))))))))
+
 
 (defn osc-fb-c
   "a sine oscillator that has phase modulation feedback
@@ -87,10 +89,10 @@
   (let [phase (atom (double in-phase))
         prev (atom 0.0)
         freq-mul (double (/ TAU *sample-rate*))]
-    (fn [amp freq feedback]
+    (fn ^double [amp freq feedback]
       (* amp
          (swap! prev
-                (fn [prev]
+                (fn ^double [prev]
                   (Math/sin
                    (swap! phase
                           #(let [new-phase
@@ -105,7 +107,13 @@
       table-size (double 8192)
       sine-table (double-array (vec (map
                                      #(Math/sin (* TAU (/ % table-size)))
-                                     (range table-size))))]
+                                     (range table-size))))
+      inc-phase (fn [old-phase]
+                  (let [new-phase
+                        (unchecked-add old-phase (* cycle freq))]
+                    (if (> new-phase table-size)
+                      (unchecked-subtract new-phase table-size)
+                      new-phase)))]
   (defn sin-osc-c
     "a sine oscillator using a 8192 point wavetable
 
@@ -113,16 +121,10 @@
           [in-phase]
           (let [phase (atom (double in-phase))
                 cycle (double (/ table-size *sample-rate*))]
-            (fn [amp freq]
+            (fn ^double [amp freq]
               (* amp
                  (aget sine-table
-                       (unchecked-short
-                        (swap! phase
-                               #(let [new-phase
-                                      (unchecked-add % (* cycle freq))]
-                                  (if (> new-phase table-size)
-                                    (unchecked-subtract new-phase table-size)
-                                    new-phase))))))))))
+                       (swap! phase inc-phase)))))))
 
 
 (defn square-c
@@ -141,35 +143,36 @@
 
   Returns a function with the following arguments: [amp freq]"
   [in-phase]
-  (let [phase (atom in-phase)
+  (let [phase (atom (double in-phase))
         dp (atom 1.0)
         leak 0.995
         saw (atom 0.0)
         half-sample-rate (* 0.5 *sample-rate*)
         re-half-sample-rate (/ 1.0 (* 0.5 *sample-rate*))]
-    (fn [amp freq]
+    (fn ^double [amp freq]
       (let [x (max 0.000001
                    (* Math/PI
                       (swap! phase
-                             (fn [old-phase]
+                             (fn ^double [old-phase]
                                (let [new-phase (+ old-phase @dp)]
                                  (if (< new-phase 0.0)
-                                   (do (swap! dp #(- 0.0 %))
+                                   (do (swap! dp * -1)
                                        (- 0.0 new-phase))
                                    (let [qmax (/ half-sample-rate freq)]
                                      (if (> new-phase qmax)
-                                       (do (swap! dp #(- 0.0 %))
+                                       (do (swap! dp * -1)
                                            (+ qmax (- qmax new-phase)))
                                        new-phase))))))))]
-        (* amp (swap! saw #(* leak
-                              (+ %
-                                 (* -0.498 freq re-half-sample-rate)
-                                 (/ (Math/sin x) x)))))))))
+        (* amp (swap! saw
+                      (fn ^double [in-saw] leak
+                        (+ in-saw
+                           (* -0.498 freq re-half-sample-rate)
+                           (/ (Math/sin x) x)))))))))
 
 
 (defn white-noise
-  []
-  (- (rand 2.0) 1.0))
+  ^double []
+  (dec (rand 2.0)))
 
 
 (defn delay-c
@@ -183,8 +186,9 @@
         delay (int (Math/ceil (* max_delay *sample-rate*)))
         line (double-array delay 0.0)
         time (atom (long -1))]
-    (fn [input wet feedback]
-      (let [delayed (aget line (swap! time #(mod (inc %) delay)))]
+    (fn ^double [input wet feedback]
+      (let [delayed (aget line
+                          (swap! time #(mod (inc %) delay)))]
         (aset-double line @time (* feedback (+ input delayed)))
         (+ input (* delayed wet))))))
 
