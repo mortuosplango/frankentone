@@ -138,36 +138,36 @@
       (* amp (Math/tanh (osc n freq))))))
 
 
-(defn saw-c
-  "saw oscillator
+(let [leak 0.995
+      half-sample-rate (* 0.5 *sample-rate*)
+      re-half-sample-rate (/ 1.0 (* 0.5 *sample-rate*))]
+  (defn saw-c
+    "saw oscillator
 
   Returns a function with the following arguments: [amp freq]"
-  [in-phase]
-  (let [phase (atom (double in-phase))
-        dp (atom 1.0)
-        leak 0.995
-        saw (atom 0.0)
-        half-sample-rate (* 0.5 *sample-rate*)
-        re-half-sample-rate (/ 1.0 (* 0.5 *sample-rate*))]
-    (fn ^double [amp freq]
-      (let [x (max 0.000001
-                   (* Math/PI
-                      (swap! phase
-                             (fn ^double [old-phase]
-                               (let [new-phase (+ old-phase @dp)]
-                                 (if (< new-phase 0.0)
-                                   (do (swap! dp * -1)
-                                       (- 0.0 new-phase))
-                                   (let [qmax (/ half-sample-rate freq)]
-                                     (if (> new-phase qmax)
-                                       (do (swap! dp * -1)
-                                           (+ qmax (- qmax new-phase)))
-                                       new-phase))))))))]
-        (* amp (swap! saw
-                      (fn ^double [in-saw] leak
-                        (+ in-saw
-                           (* -0.498 freq re-half-sample-rate)
-                           (/ (Math/sin x) x)))))))))
+    [in-phase]
+    (let [phase (atom (double in-phase))
+          dp (atom 1.0)
+          saw (atom 0.0)]
+      (fn ^double [amp freq]
+        (let [x (max 0.000001
+                     (* Math/PI
+                        (swap! phase
+                               (fn ^double [old-phase]
+                                 (let [new-phase (+ old-phase @dp)]
+                                   (if (< new-phase 0.0)
+                                     (do (swap! dp * -1.0)
+                                         (- 0.0 new-phase))
+                                     (let [qmax (/ half-sample-rate freq)]
+                                       (if (> new-phase qmax)
+                                         (do (swap! dp * -1.0)
+                                             (+ qmax (- qmax new-phase)))
+                                         new-phase))))))))]
+          (* amp (swap! saw
+                        (fn ^double [in-saw] leak
+                          (+ in-saw
+                             (* -0.498 freq re-half-sample-rate)
+                             (/ (Math/sin x) x))))))))))
 
 
 (definline white-noise
@@ -193,25 +193,24 @@
         (+ input (* delayed wet))))))
 
 
-(defn general-biquad-c [fn-coef]
-  (let [
-        y1 (atom 0.0)
-        y2 (atom 0.0)
-        x1 (atom 0.0)
-        x2 (atom 0.0)
-        b0 (atom 0.0)
-        b1 (atom 0.0)
-        b2 (atom 0.0)
-        re-a0 (atom 0.0) ;; reciprocal of a0
-        a1 (atom 0.0)
-        a2 (atom 0.0)
-        oldres (atom 0.0)
-        oldfreq (atom 0.0)
-        omega-factor (double (/ TAU *sample-rate*))]
-    (fn [in-x freq res]
-      ;; if frequency changes
-      ;; recalculate coefficients
-      (let [x (double in-x)]
+(let [omega-factor (double (/ TAU *sample-rate*))]
+  (defn general-biquad-c [fn-coef]
+    (let [
+          y1 (atom 0.0)
+          y2 (atom 0.0)
+          x1 (atom 0.0)
+          x2 (atom 0.0)
+          b0 (atom 0.0)
+          b1 (atom 0.0)
+          b2 (atom 0.0)
+          re-a0 (atom 0.0) ;; reciprocal of a0
+          a1 (atom 0.0)
+          a2 (atom 0.0)
+          oldres (atom 0.0)
+          oldfreq (atom 0.0)]
+      (fn ^double [x freq res]
+        ;; if frequency changes
+        ;; recalculate coefficients
         (when (or (not= freq @oldfreq)
                   (not= res @oldres))
           (let [omega (* (reset! oldfreq freq)
@@ -223,7 +222,8 @@
                                 (reset! oldres res)))
                      b0 b1 b2
                      re-a0 a1 a2)))
-        (let [re-a0 @re-a0
+        (let [x (double x)
+              re-a0 @re-a0
               y (- (+ (* @b0 re-a0 x)
                       (* @b1 re-a0 @x1)
                       (* @b2 re-a0 @x2))
