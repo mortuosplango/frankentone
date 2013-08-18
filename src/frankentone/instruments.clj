@@ -52,8 +52,8 @@
     [name
      ^PriorityBlockingQueue note-starts
      notes
-     ^Long id
-     ^{:volatile-mutable true} function]
+     id
+     ^:volatile-mutable function]
 
   IInstrument
   (clear [_] 
@@ -154,14 +154,14 @@
 (definst default 
   (fn [freq amp dur]
     (let [lpf (lpf-c)
-          saw1 (saw-c 0.0)
-          saw2 (saw-c 0.0)
-          saw3 (saw-c 0.0)
+          saw1 (sawdpw-c 0.0)
+          saw2 (sawdpw-c 0.0)
+          saw3 (sawdpw-c 0.0)
           saw-freq-add2 (rrand 0.4)
           saw-freq-add3 (rrand 0.4)
           line (line-c (rrand 4000 5000) (rrand 2500 3200) 1.0)
           asr (asr-c 0.01 (max 0.0 (- dur 0.11)) 0.6 0.1)]
-      (fn [time]
+      (fn ^double [time]
         (+ (*
             amp
             (asr)
