@@ -8,7 +8,7 @@
 (definst old-blub (fn [freq amp dur]
                 (let [osc (sin-osc-c 0.0)
                       asr (asr-c 0.01 0.1 0.5 dur)
-                      square (square-c 0.0)
+                      square (pulsedpw-c 0.5)
                       lpf (lpf-c)
                       osc-b (sin-osc-c 0.0)]
                   (fn [time]
@@ -22,8 +22,8 @@
 (definst blub (fn [freq amp dur]
                 (let [osc (sin-osc-c 0.0)
                       asr (asr-c 0.02 0.2 1.0 (max 0.1 (- dur 0.2)))
-                      saw (saw-c 0.0)
-                      saw1 (saw-c 0.1)
+                      saw (sawdpw-c 0.0)
+                      saw1 (sawdpw-c 0.1)
                       lpf (lpf-c)
                       ffreq (rrand 2.0 3.0)
                       dfreq (rrand 2.0 1.0)
