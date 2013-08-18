@@ -87,10 +87,10 @@
        (Math/sin
         (set! phase
               (let [new-phase
-                     (+ phase (* freq freq-mul))]
-                 (if (> new-phase Math/PI)
-                   (- new-phase TAU)
-                   new-phase)))))))
+                    (+ phase (* freq freq-mul))]
+                (if (> new-phase Math/PI)
+                  (- new-phase TAU)
+                  new-phase)))))))
 
 (defn osc-c
   "a sine oscillator
@@ -135,19 +135,19 @@
     (* amp
        (aget ^doubles sine-table
              (set! phase 
-                    (let [new-phase
-                          (+ phase (* cycle freq))]
-                      (if (> new-phase table-size)
-                        (- new-phase table-size)
-                        new-phase)))))))
+                   (let [new-phase
+                         (+ phase (* cycle freq))]
+                     (if (> new-phase table-size)
+                       (- new-phase table-size)
+                       new-phase)))))))
 
 (let [
       table-size (double 8192)
       cycle (double (/ table-size *sample-rate*))
       sine-table (double-array (vec (map
-                                    #(Math/sin (* TAU (/ % table-size)))
-                                    (range table-size))))]
- 
+                                     #(Math/sin (* TAU (/ % table-size)))
+                                     (range table-size))))]
+  
   (defn sin-osc-c
     "a sine oscillator using a 8192 point wavetable
 
@@ -226,9 +226,9 @@
       (set! phase (double (-calc-phase phase freq)))
       (* amp
          (- (set! val 
-                    (Math/pow
-                     phase
-                     2))
+                  (Math/pow
+                   phase
+                   2))
             oldval)
          (if (= freq prevfreq)
            scalefac
@@ -241,14 +241,14 @@
                              sample-dur))))))))))
 
 (defn sawdpw-c
-    "A sawtooth oscillator using the 'Differentiated Parabolic Wave' technique
+  "A sawtooth oscillator using the 'Differentiated Parabolic Wave' technique
 
 The technique is documented in Välimäki (2005) Signal Processing Letters 12(3) pages 214-217.
 
 Port of http://doc.sccode.org/Classes/SawDPW.html.
 
 Returns a function with the following arguments: [amp freq]"
-    [inphase]
+  [inphase]
   (tSawDPW. (double inphase) 0.0 0.0 0.0))
 
 
@@ -271,24 +271,24 @@ Returns a function with the following arguments: [amp freq]"
       (set! phase-b (double (-calc-phase phase-b freq)))
       (* amp
          (- (- (set! val-a 
-                       (Math/pow
-                        phase-a
-                        2))
+                     (Math/pow
+                      phase-a
+                      2))
                oldval-a)
             (- (set! val-b
-                       (Math/pow
-                        phase-b
-                        2))
+                     (Math/pow
+                      phase-b
+                      2))
                oldval-b))
          (if (= freq prevfreq)
            scalefac
            (set! scalefac
-                   (/ *sample-rate*
-                      (* 8.0
-                         (set! prevfreq freq)
-                         (- 1.0
-                            (* freq
-                               sample-dur))))))))))
+                 (/ *sample-rate*
+                    (* 8.0
+                       (set! prevfreq freq)
+                       (- 1.0
+                          (* freq
+                             sample-dur))))))))))
 
 (defn pulsedpw-c 
   "  Use this just like the Pulse UGen - as with SawDPW, this uses the
@@ -431,7 +431,7 @@ Returns a function with the following arguments: [amp freq]"
 
 (let [omega-factor (double (/ TAU *sample-rate*))]
   (defn lpf-c
-          "Lowpass Filter.
+    "Lowpass Filter.
 
   BiQuad coefficient formulae from Audio EQ Cookbook Robert
   Bristow-Johnson
@@ -439,13 +439,13 @@ Returns a function with the following arguments: [amp freq]"
   http://www.musicdsp.org/files/Audio-EQ-Cookbook.txt
 
   Returns a function with the following arguments: [input freq Q]"
-          []
-          (GeneralBiquad. 0.0 0.0
-                          0.0 0.0
-                          0.0 0.0 0.0
-                          0.0 0.0 0.0
-                          0.0 0.0 0
-                          omega-factor))
+    []
+    (GeneralBiquad. 0.0 0.0
+                    0.0 0.0
+                    0.0 0.0 0.0
+                    0.0 0.0 0.0
+                    0.0 0.0 0
+                    omega-factor))
 
   (defn hpf-c
     "Highpass Filter.
