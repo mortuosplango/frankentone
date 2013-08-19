@@ -291,11 +291,9 @@ Returns a function with the following arguments: [amp freq]"
                              sample-dur))))))))))
 
 (defn pulsedpw-c 
-  "  Use this just like the Pulse UGen - as with SawDPW, this uses the
+  "Use this just like the Pulse UGen - as with SawDPW, this uses the
   'Differentiated Parabolic Wave' technique to create a waveform
   extremely efficiently and with low (but not zero) aliasing.
-
-  freq - Frequency in Hertz (control rate)
 
   width - Pulse width ratio from zero to one. 0.5 makes a square wave.
   This cannot be modulated.
@@ -306,8 +304,8 @@ Returns a function with the following arguments: [amp freq]"
   Port of http://doc.sccode.org/Classes/PulseDPW.html.
 
   Returns a function with the following arguments: [amp freq]"
-  [inphase]
-  (tPulseDPW. inphase 0.0 0.0 0.0 0.0 0.0))
+  [width]
+  (tPulseDPW. (double width) 0.0 0.0 0.0 0.0 0.0))
 
 
 (definline white-noise
