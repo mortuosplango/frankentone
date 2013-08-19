@@ -100,6 +100,45 @@
   (tOsc. (double in-phase) (double (/ TAU *sample-rate*)) ))
 
 
+(deftype tFSinOsc
+    [^:unsynchronized-mutable ^double y0
+     ^:unsynchronized-mutable ^double y1
+     ^:unsynchronized-mutable ^double y2
+     ^:unsynchronized-mutable ^double b1
+     ^:unsynchronized-mutable ^double prevfreq
+     ^double radians-per-sample]
+  clojure.lang.IFn
+  (invoke ^double [_ amp freq]
+    (when-not (= freq prevfreq)
+      (set! prevfreq (double freq))
+      (set! b1 (* 2.0 (Math/cos
+                       (* freq radians-per-sample)))))
+    (set! y0 (- (* b1 y1) y2))
+    (set! y2 y1)
+    (set! y1 y0)
+    (* amp y0)))
+
+
+(defn fsin-osc-c
+  "Fast sine wave generator implemented using a ringing filter.
+  This generates a much cleaner sine wave than a table lookup
+  oscillator and is a lot faster. However, the amplitude of the wave
+  will vary with frequency. Generally the amplitude will go down as
+  you raise the frequency and go up as you lower the frequency.
+
+  Based on http://www.musicdsp.org/showone.php?id=9
+
+  Returns a function with the following arguments: [amp freq]"
+  [in-phase]
+  (tFSinOsc.
+   0.0
+   0.0
+   0.0
+   0.0
+   0.0
+   (* TAU sample-dur)))
+
+
 (deftype tOscFb
     [^:unsynchronized-mutable ^double phase
      ^:unsynchronized-mutable ^double prev
@@ -310,7 +349,7 @@ Returns a function with the following arguments: [amp freq]"
 
 (definline white-noise
   []
-  `(dec (rand 2.0)))
+  `(- (rand 2.0) 1.0))
 
 
 (deftype tDelay
@@ -319,8 +358,12 @@ Returns a function with the following arguments: [amp freq]"
      ^long delay]
   clojure.lang.IFn
   (invoke ^double [_ input wet feedback]
-    (let [delayed (aget line
-                        (set! time (long (mod (inc time) delay))))]
+
+    (let [delayed (aget line time)
+          new-time (unchecked-inc time)]
+      (set! time (if (= new-time delay)
+                   0
+                   new-time))
       (aset line time ^double (* feedback (+ input delayed)))
       (+ input (* delayed wet)))))
 
@@ -333,7 +376,7 @@ Returns a function with the following arguments: [amp freq]"
   Returns a function with the following arguments: [input wet feedback]"
   [max_delay]
   (let [delay (long (Math/ceil (* max_delay *sample-rate*)))]
-    (tDelay. 0.0 (double-array delay 0.0) delay)))
+    (tDelay. -1 (double-array delay 0.0) delay)))
 
 
 (defprotocol IBiquad
