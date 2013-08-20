@@ -35,15 +35,15 @@
 
 (deftype tAsr
     [^:unsynchronized-mutable ^double time
-     a-line
-     r-line
+     ^tLine a-line
+     ^tLine r-line
      ^long attack-time
      ^long release-time
      ^long attack+sustain-time
      ^double sustain-level]
   clojure.lang.IFn
   (invoke ^double [_]
-    (set! time (inc time))
+    (set! time (unchecked-inc time))
     (if (< time attack-time)
       (a-line)
       (if (< time attack+sustain-time)
@@ -347,24 +347,18 @@ Returns a function with the following arguments: [amp freq]"
   (tPulseDPW. (double width) 0.0 0.0 0.0 0.0 0.0))
 
 
-(definline white-noise
-  []
-  `(- (rand 2.0) 1.0))
-
-
 (deftype tDelay
     [^:unsynchronized-mutable ^long time
      ^doubles line
      ^long delay]
   clojure.lang.IFn
   (invoke ^double [_ input wet feedback]
-
     (let [delayed (aget line time)
           new-time (unchecked-inc time)]
+      (aset line time ^double (* feedback (+ input delayed)))
       (set! time (if (= new-time delay)
                    0
                    new-time))
-      (aset line time ^double (* feedback (+ input delayed)))
       (+ input (* delayed wet)))))
 
 
@@ -376,7 +370,7 @@ Returns a function with the following arguments: [amp freq]"
   Returns a function with the following arguments: [input wet feedback]"
   [max_delay]
   (let [delay (long (Math/ceil (* max_delay *sample-rate*)))]
-    (tDelay. -1 (double-array delay 0.0) delay)))
+    (tDelay. 0 (double-array delay 0.0) delay)))
 
 
 (defprotocol IBiquad
