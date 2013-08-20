@@ -1,4 +1,5 @@
-(ns frankentone.utils)
+(ns frankentone.utils
+  (:use clojure.walk))
 
 
 (def TAU (* Math/PI 2))
@@ -111,7 +112,7 @@
   (let [sin-osc (sin-osc-c 0.0)] (fn [x] (sin-osc 0.1 440)))"
   [args body]
   (let [vars# (atom [])
-        new-body# (clojure.walk/postwalk (fn [expr#]
+        new-body# (postwalk (fn [expr#]
                               (if (and (coll? expr#)
                                        (seq expr#)
                                        ;; is it in the ugen namespace?
