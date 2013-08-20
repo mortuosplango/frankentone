@@ -89,5 +89,49 @@
   "Scale a float value to a short value without range checking."
   (unchecked-short (* f scaling-factor)))
 
-;;debugging parts of expressions
-(defmacro dbg[x] `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
+
+(definline dbg
+  "debugging parts of expressions"
+  [x]
+  `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
+
+
+(defmacro fn-c
+  "EXPERIMENTAL
+
+  Produces a function with all closure-producing functions (ending in
+  -c) let'ed automagically.
+
+  Example:
+
+  (fn-c [x] (sin-osc-c 0.0 0.1 440))
+
+  corresponds to:
+
+  (let [sin-osc (sin-osc-c 0.0)] (fn [x] (sin-osc 0.1 440)))"
+  [args body]
+  (let [vars# (atom [])
+        new-body# (clojure.walk/postwalk (fn [expr#]
+                              (if (and (coll? expr#)
+                                       (seq expr#)
+                                       ;; is it in the ugen namespace?
+                                       (some-> (first expr#) 
+                                               resolve meta :ns
+                                               (= (find-ns 'frankentone.ugens)))
+                                       ;; and does it produce a closure to work?
+                                       (= (subs (str (first expr#))
+                                                (- (count (str (first expr#))) 2)) "-c"))
+                                (do (let [symb# (gensym (str (first expr#)))]
+                                      (swap! vars# conj symb#
+                                             (take (some-> (first expr#)
+                                                           resolve
+                                                           meta
+                                                           :arglists
+                                                           first
+                                                           count
+                                                           inc) expr#))
+                                      (conj (nnext expr#) symb#)))
+                                expr#))
+                            body)]
+    `(let ~(deref vars#) (fn ~args
+                           ~new-body#))))
