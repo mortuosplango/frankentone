@@ -165,8 +165,11 @@
   (tOscFb. (double in-phase) 0.0 (double (/ TAU *sample-rate*)) ))
 
 
+
+  
 (deftype tSinOsc
     [^:unsynchronized-mutable ^double phase
+     ^doubles sine-table
      ^double table-size
      ^double cycle]
   clojure.lang.IFn
@@ -186,13 +189,13 @@
       sine-table (double-array (vec (map
                                      #(Math/sin (* TAU (/ % table-size)))
                                      (range table-size))))]
-  
+
   (defn sin-osc-c
     "a sine oscillator using a 8192 point wavetable
 
   Returns a function with the following arguments: [amp freq]"
     [in-phase]
-    (tSinOsc. (double in-phase) table-size cycle)))
+    (tSinOsc. (double in-phase) sine-table table-size cycle)))
 
 
 (defn square-c
@@ -551,6 +554,11 @@ Returns a function with the following arguments: [amp freq]"
                     0.0 0.0 0.0
                     0.0 0.0 0.0
                     0.0 0.0 4  omega-factor)))
+
+
+(defn white-noise
+  ^double []
+  (- (rand 2.0) 1.0))
 
 
 (deftype tPinkNoise
