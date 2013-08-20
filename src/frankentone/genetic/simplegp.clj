@@ -6,35 +6,41 @@
          ugens]
         [frankentone.genetic 
          analysis
+         simplegpfunctions
          utils])
   (:require [incanter core charts stats])
   (:import [edu.emory.mathcs.jtransforms.fft FloatFFT_1D]))
 
-(def random-functions (list
-             { :fn 'sin :arity 1 }
-             { :fn 'cos :arity 1 }
-             { :fn 'tanh :arity 1 }
-             { :fn 'mul-sin :arity 2 }
-             { :fn 'mul-cos :arity 2 }
-             { :fn 'mul-tanh :arity 2 }
-             ;;{ :fn 'rrand :arity 1 }
-             ;;{ :fn 'rrand :arity 2 }
-             { :fn '+ :arity 2 }
-             { :fn '+ :arity 3 }
-             { :fn '- :arity 2 }
-             { :fn '* :arity 2 }
-             { :fn '* :arity 3 }
-             { :fn 'pmod :arity 2 }
-             { :fn 'pd :arity 2 }
-             { :fn 'pround :arity 2 }
-             { :fn 'max :arity 2 }
-             { :fn 'min :arity 2 }
-             { :fn 'mean :arity 2 }
-             { :fn 'if>0 :arity 3 }
-             { :fn 'if<0 :arity 3 }
-             { :fn 'bset! :arity 2 }
-             { :fn 'bget :arity 1 }
-             ))
+(def ^:dynamic random-functions
+  (list
+   { :fn 'sin :arity 1 }
+   { :fn 'cos :arity 1 }
+   { :fn 'tanh :arity 1 }
+   { :fn 'mul-sin :arity 2 }
+   { :fn 'mul-cos :arity 2 }
+   { :fn 'mul-tanh :arity 2 }
+   ;;{ :fn 'rrand :arity 1 }
+   ;;{ :fn 'rrand :arity 2 }
+   { :fn '+ :arity 2 }
+   { :fn '+ :arity 3 }
+   { :fn '- :arity 2 }
+   { :fn '* :arity 2 }
+   { :fn '* :arity 3 }
+   { :fn 'pmod :arity 2 }
+   { :fn 'pd :arity 2 }
+   { :fn 'pround :arity 2 }
+   { :fn 'max :arity 2 }
+   { :fn 'min :arity 2 }
+   { :fn 'mean :arity 2 }
+   { :fn 'if>0 :arity 3 }
+   { :fn 'if<0 :arity 3 }))
+
+(def ^:dynamic random-terminals
+  '(list
+    'x
+    (rrand -5.0 5.0)
+    'Math/PI
+    (rrand -1.0 1.0)))
 
 (defn random-function
   "Return a random function with its arity.
@@ -48,72 +54,10 @@
   (rand-nth (filter #(= (:arity %) arity) random-functions)))
 
 
-(defn- -pd-bad-values? ^Boolean  [num denom]
-  (or (zero? denom) (= (type num) java.lang.Double) (has-bad-value? denom)))
-
-(defn pmod
-  "Protected modulo; returns 0 if the denominator is zero."
-    ^Double [num denom]
-    (if (-pd-bad-values? num denom)
-      0.0
-      (mod num denom)))
-
-(defn pd
-  "Protected division; returns 0 if the denominator is zero."
-  ^Double  [num denom]
-  (if (-pd-bad-values? num denom)
-    0.0
-    (/ num denom)))
-
-(defn pround
-  "Protected rounding."
-  ^Double  [num denom]
-  (if (-pd-bad-values? num denom)
-      0.0
-      (- num (pmod num denom))))
-
-(defn sin ^Double [x] (Math/sin x))
-(defn cos ^Double [x] (Math/cos x))
-(defn tanh ^Double [x] (Math/tanh x))
-
-(defn bset!
-  "Set the buffer at second x to value y. Returns the former value at
-  x.
-
-  As the buffer is just one second long, other values for x will be
-  wrapped."
-  ^Double [x y]
-  (let [pos (* (pmod x 1.0) (dec *sample-rate*))
-        previous-value (aget ^doubles buffer pos)]
-    (aset-double buffer pos y)
-    previous-value))
-
-(defn bget
-  "Get the value at second x in the buffer.
-
-  As the buffer is just one second long, other values for x will be
-  wrapped."
- ^Double [x] (aget ^doubles buffer (* (pmod x 1.0) (dec *sample-rate*))))
-(defn mul-sin ^Double [x y] (Math/sin (* x y)))
-(defn mul-cos ^Double [x y] (Math/cos (* x y)))
-(defn mul-tanh ^Double [x y] (Math/tanh (* x y)))
-(defn if>0 ^Double [x y z] (if (> x 0.0) y z))
-(defn if<0 ^Double [x y z] (if (< x 0.0) y z))
-(defn mean ^Double [x y] (/ (+ x y) 2.0))
-
 (defn random-terminal
   "Return a random terminal."
   []
-  (rand-nth (list
-             'x
-             'prev
-             (rrand -5.0 5.0)
-             'Math/PI
-             'TAU
-             (rrand -1.0 1.0)
-             (exp-rand 20.0 20000.0)
-             (exp-rand 1.0 30.0)
-             '*sample-rate*)))
+  (rand-nth (eval random-terminals)))
 
 
 (defn random-code
@@ -255,6 +199,7 @@
 
 (def ^:dynamic *evolution* (atom true))
 
+
 (defn evolve
   "Start evolution.
 
@@ -262,43 +207,53 @@
   higher, the worse).
 
   Optional best-callback will accept the best program and its error."
-  [popsize error-fn best-callback]
+  [popsize error-fn & { :keys  [best-callback stop-atom success-threshold
+                                mutation-rate crossover-rate clone-rate
+                                vary-rate random-code-rate
+                                functions terminals]
+                       :or   {best-callback nil
+                              stop-atom *evolution*
+                              success-threshold 0.1
+                              mutation-rate 0.35
+                              crossover-rate 0.25
+                              clone-rate 0.23
+                              vary-rate 0.13
+                              random-code-rate 0.04
+                              functions random-functions
+                              terminals random-terminals}}]
   (println "Starting evolution...")
-  (reset! *evolution* true)
-  (loop [generation 0
-         population (sort-by-error (repeatedly popsize #(random-code 2)) error-fn)]
-    (let [best (first population)
-          best-error (error-fn best)]
-      (println "======================")
-      (println "Generation:" generation)
-      (println "Best error:" best-error)
-      (println "Best program:" best)
-      (when (fn? best-callback)
-        (best-callback best best-error))
-      (println "     Median error:" (error-fn (nth population 
-                                                (int (/ popsize 2)))))
-      (println "     Average program size:" 
-               (float (/ (reduce + (map count (map flatten population)))
-                         (count population))))
-      (if (or (not @*evolution*) (< best-error 0.1)) ;; good enough to count as success
-        (println "Success:" best)
-        (recur 
-          (inc generation)
-          (time (sort-by-error      
-             (concat
-              (repeatedly (* 0.35 popsize) #(mutate (select population 7)))
-              (repeatedly (* 0.25 popsize) #(crossover (select population 7)
-                                                       (select population 7)))
-              (repeatedly (* 0.23 popsize) #(select population 7))
-              (repeatedly (* 0.13 popsize) #(vary (select population 7)))
-              (repeatedly (* 0.04 popsize) #(random-code (inc (rand-int 20))))
-              )
-             error-fn)))))))
+  (reset! stop-atom true)
+  (binding [random-functions functions
+            random-terminals terminals]
+    (loop [generation 0
+           population (sort-by-error (repeatedly popsize #(random-code 2)) error-fn)]
+      (let [best (first population)
+            best-error (error-fn best)]
+        (println "======================")
+        (println "Generation:" generation)
+        (println "Best error:" best-error)
+        (println "Best program:" best)
+        (when (fn? best-callback)
+          (best-callback best best-error))
+        (println "     Median error:" (error-fn (nth population 
+                                                     (int (/ popsize 2)))))
+        (println "     Average program size:" 
+                 (float (/ (reduce + (map count (map flatten population)))
+                           (count population))))
+        
+        ;; good enough to count as success
+        (if (or (not @stop-atom) (< best-error success-threshold)) 
+          (println "Success:" best)
+          (recur 
+           (inc generation)
+           (time (sort-by-error      
+                  (concat
+                   (repeatedly (* mutation-rate popsize) #(mutate (select population 7)))
+                   (repeatedly (* crossover-rate popsize) #(crossover (select population 7)
+                                                                      (select population 7)))
+                   (repeatedly (* clone-rate popsize) #(select population 7))
+                   (repeatedly (* vary-rate popsize) #(vary (select population 7)))
+                   (repeatedly (* random-code-rate popsize) #(random-code (inc (rand-int 20)))))
+                  error-fn))))))))
 
-
-;; Exercises:
-;; - Remove the numerical constants and see how this affects problem-solving
-;;   performance.
-;; - Replace various hard-coded parameters with variables or arguments to 
-;;   allow for easier experimentation with different parameter sets.
 
