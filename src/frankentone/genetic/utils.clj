@@ -12,20 +12,12 @@
 (defn program->dsp!
   "Try to set the given program as dsp function."
   ([program]
-     (reset-dsp!
-      (binding [buffer (double-array *sample-rate* 0.0)]
-        (let [
-              val-func (program->fn program)
-              prev-samp (atom 0.0)]
-          (fn ^Double [^Double x ^Long chan]
-            (if (zero? chan)
-              (swap! prev-samp #(val-func x %))
-              @prev-samp))))))
+     (program->dsp! program false))
   ([program offset-p]
      (reset-dsp!
       (binding [buffer (double-array *sample-rate* 0.0)]
         (let [
-              offset @current-time
+              offset (if offset-p (double @current-time) 0.0)
               value-function (program->fn program)
               prev-samp (atom 0.0)]
           (fn ^Double [^Double x ^Long chan]
