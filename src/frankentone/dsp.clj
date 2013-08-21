@@ -1,8 +1,6 @@
 (ns frankentone.dsp
-   (:use clj-audio.core
-         clj-audio.sampled
-         frankentone.utils
-         frankentone.ugens)
+  (:use [clj-audio core sampled]
+        [frankentone utils ugens])
    (:import [javax.sound.sampled
              AudioFormat
              AudioInputStream
@@ -12,20 +10,18 @@
             [java.util Date]))
 
 
-(def ^:dynamic *dsp-running* (atom true))
-(def ^:dynamic *dsp* (atom nil))
-(def ^:dynamic *default-buffer-size* (/ 8192 4))
+(defonce ^:dynamic *dsp* (atom nil))
+(def ^:dynamic *default-buffer-size* (long (/ 8192 1)))
+(defonce cplay (atom nil))
 
 
-(def current-time (atom 0.0))
-
-
-(def ^:dynamic *dsp-fun* (atom (let [pink (pink-c)
-                                     last-samp (atom 0.0)]
-                                 (fn [x chan]
-                                   (if (zero? chan)
-                                     (reset! last-samp (* 0.1 (pink)))
-                                     @last-samp)))))
+(defonce ^:dynamic *dsp-fun*
+  (atom (let [pink (pink-c)
+              last-samp (atom 0.0)]
+          (fn [x chan]
+            (if (zero? chan)
+              (reset! last-samp (* 0.1 (pink)))
+              @last-samp)))))
 
 
 (def ^:dynamic *default-output-format*
@@ -39,18 +35,32 @@
     :endianness :little-endian}))
 
 
-(defn constant-play
-  "Play the given dsp function.
+(defprotocol ICPlay
+  (setFunc [_ func])
+  (getCurrentTime [_])
+  (stopDsp [_]))
 
-  Accepts an optional listener function that will be called when a
-  line event is raised, taking the event type, the line and the stream
-  position as arguments. Returns the number of bytes played."
-  ([atom-fn & [listener]]
+
+(deftype tCPlay
+    [^:unsynchronized-mutable ^clojure.lang.IFn dsp-func
+     ^:unsynchronized-mutable ^java.lang.Boolean playing
+     ^:unsynchronized-mutable ^double current-time
+     ^long buffer-size]
+  ICPlay
+  (setFunc [_ func]
+    (set! dsp-func func))
+  (getCurrentTime [_]
+    current-time)
+  (stopDsp [_]
+    (set! playing false))
+  clojure.lang.IFn
+  (invoke [_]
      (let [
-           buffer-size 8192
            num-channels (long (.getChannels ^AudioFormat *default-output-format*))
-
-           buffer-size-in-bytes (* buffer-size num-channels 2)
+           num-channels-1 (dec num-channels)
+           buffer-size-in-bytes (long (* buffer-size num-channels 2))
+           buffer-size-in-bytes-1 (long (dec buffer-size-in-bytes))
+           
            buffer-size-in-secs (/ buffer-size *sample-rate*)
 
            line (make-line :output *default-output-format*
@@ -66,47 +76,90 @@
            bbuffer (java.nio.ByteBuffer/allocate buffer-size-in-bytes)
 
            time-step (double (/ 1.0 *sample-rate*))
-
-           p #(with-data-line [#^SourceDataLine source line]
-                (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
-                (let [audio-stream (AudioInputStream.
-                                    (java.io.ByteArrayInputStream.
-                                     (.array bbuffer))
-                                    *default-format*
-                                    -1)]
-                  (while (deref *dsp-running*)
-                    ;;
-                    ;; (time)
-                    (loop [c-time (double @current-time)]
-                      (dotimes [chan num-channels]
-                        (.putShort bbuffer
-                                   (unchecked-short
-                                    (* scaling-factor
-                                       (@atom-fn
-                                        c-time
-                                        chan)))))
-                      (if (.hasRemaining bbuffer)
-                        (recur (+ c-time time-step))
-                        (reset! current-time (+ time-step
-                                                c-time))))
-
-                    ;; play*
-                    (loop [cnt (long 0)]
-                      (when (> cnt -1)
-                        (when (> cnt 0)
-                          (.write source play-buffer 0 cnt))
-                        (recur (.read audio-stream play-buffer 0
-                                      buffer-size-in-bytes))))
-                    (.clear bbuffer)
-                    (.reset audio-stream)))
-                (prn "dsp thread stopped"))]
+           c-time (atom 0.0)]
        
        (prn "dsp thread started")
-       (reset! current-time (+ (* 0.001 (System/currentTimeMillis))
-                               buffer-size-in-secs))
-       (if listener
-         (with-line-listener line listener (p))
-         (p)))))
+       (set! current-time (- (+ (* 0.001 (System/currentTimeMillis))
+                                buffer-size-in-secs)
+                             time-step))
+       (reset! c-time current-time)
+       (with-data-line [#^SourceDataLine source line]
+         (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
+         (let [audio-stream (AudioInputStream.
+                             (java.io.ByteArrayInputStream.
+                              (.array bbuffer))
+                             *default-format*
+                             -1)
+               sbuffer (.asShortBuffer bbuffer)
+               sarray (short-array (* 8192 num-channels))]
+           (if (= num-channels 2)
+             (while playing
+               ;; for timing:
+               ;; (let [start (. System (nanoTime))]
+               ;;   (prn (str "Elapsed time: "
+               ;;             (/ (double (- (. System
+               ;;                              (nanoTime)) start)) 1000000.0) " msecs")))
+               (dotimes [_ buffer-size]
+                 (.put sbuffer
+                       (unchecked-short
+                        (* scaling-factor
+                           (dsp-func
+                            (set! current-time
+                                  (+ time-step
+                                     current-time))
+                            0))))
+                 (.put sbuffer
+                       (unchecked-short
+                        (* scaling-factor
+                           (dsp-func
+                            current-time
+                            1)))))
+               (.position bbuffer buffer-size-in-bytes-1)
+
+               ;; play*
+               (loop [cnt (long 0)]
+                 (when (> cnt -1)
+                   (when (> cnt 0)
+                     (.write source play-buffer 0 cnt))
+                   (recur (.read audio-stream play-buffer 0
+                                 buffer-size-in-bytes))))
+               (.clear bbuffer)
+               (.clear sbuffer)
+               (.reset audio-stream))
+             (while playing
+               (dotimes [_ buffer-size]
+                 (set! current-time
+                       (+ time-step
+                          current-time))
+                 (dotimes [chan num-channels]
+                   (.put sbuffer
+                         (unchecked-short
+                          (* scaling-factor
+                             (dsp-func
+                              current-time
+                              chan))))))
+               (.position bbuffer buffer-size-in-bytes-1)
+
+               ;; play*
+               (loop [cnt (long 0)]
+                 (when (> cnt -1)
+                   (when (> cnt 0)
+                     (.write source play-buffer 0 cnt))
+                   (recur (.read audio-stream play-buffer 0
+                                 buffer-size-in-bytes))))
+               (.clear bbuffer)
+               (.reset audio-stream))
+             ))
+         (prn "dsp thread stopped")))))
+
+
+(defn constant-play
+  "Play the given dsp function."
+  ;; Accepts an optional listener function that will be called when a
+  ;; line event is raised, taking the event type, the line and the stream
+  ;; position as arguments. Returns the number of bytes played.
+  ([atom-fn & [listener]]
+     (tCPlay. @atom-fn true 0.0 *default-buffer-size*)))
 
 
 (defn reset-dsp!
@@ -132,6 +185,8 @@
             (if (< (inc i) (.getChannels *default-output-format*))
               (recur (inc i))
               (do (reset! *dsp-fun* new-dsp-fn)
+                  (if @cplay
+                    (.setFunc @cplay new-dsp-fn))
                   true)))))
     (do (prn "Can't reset! Is not a function!")
         false)))
@@ -157,20 +212,22 @@
 (defn start-dsp
   "Start the dsp engine."
   []
-  (if (or (nil? @*dsp*) (not (.isAlive @*dsp*)))
-    (do
-      (let [thread (Thread. #(constant-play *dsp-fun*))]
-        (.setPriority thread Thread/MAX_PRIORITY)
-        (.start thread)
-        (reset! *dsp-running* true)
-        (reset! *dsp* thread)))
-    (prn "dsp already running!")))
+  (let [ncplay (constant-play *dsp-fun*)]
+   (if (or (nil? @*dsp*) (not (.isAlive @*dsp*)))
+     (do
+       (reset! cplay ncplay)
+       (let [thread (Thread. #(ncplay))]
+         (.setPriority thread Thread/MAX_PRIORITY)
+         (.start thread)
+         (reset! *dsp* thread)))
+     (prn "dsp already running!"))))
 
 
 (defn stop-dsp
   "Stop the dsp engine."
   []
-  (reset! *dsp-running* false))
+  (if @cplay
+   (.stopDsp @cplay)))
 
 
 (defn kill-dsp
@@ -178,3 +235,78 @@
   []
   (stop-dsp)
   (.stop @*dsp*))
+
+
+(comment
+  (do
+    (def ^:dynamic *dsp-running* (atom true))
+    (def current-time (atom 0.0))
+    (defn constant-play
+      "Play the given dsp function.
+
+  Accepts an optional listener function that will be called when a
+  line event is raised, taking the event type, the line and the stream
+  position as arguments. Returns the number of bytes played."
+      ([atom-fn & [listener]]
+         (let [
+               buffer-size 8192
+               num-channels (long (.getChannels ^AudioFormat *default-output-format*))
+
+               buffer-size-in-bytes (* buffer-size num-channels 2)
+               buffer-size-in-secs (/ buffer-size *sample-rate*)
+
+               line (make-line :output *default-output-format*
+                               buffer-size-in-bytes)
+
+               scaling-factor (dec (Math/pow 2
+                                             (dec
+                                              (.getSampleSizeInBits
+                                               ^AudioFormat
+                                               *default-output-format*))))
+               
+               play-buffer (byte-array buffer-size-in-bytes)
+               bbuffer (java.nio.ByteBuffer/allocate buffer-size-in-bytes)
+
+               time-step (double (/ 1.0 *sample-rate*))
+
+               p #(with-data-line [#^SourceDataLine source line]
+                    (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
+                    (let [audio-stream (AudioInputStream.
+                                        (java.io.ByteArrayInputStream.
+                                         (.array bbuffer))
+                                        *default-format*
+                                        -1)]
+                      (while (deref *dsp-running*)
+                        ;;
+                        ;; (time)
+                        (loop [c-time (double @current-time)]
+                          (dotimes [chan num-channels]
+                            (.putShort bbuffer
+                                       (unchecked-short
+                                        (* scaling-factor
+                                           (@atom-fn
+                                            c-time
+                                            chan)))))
+                          (if (.hasRemaining bbuffer)
+                            (recur (+ c-time time-step))
+                            (reset! current-time (+ time-step
+                                                    c-time))))
+
+                        ;; play*
+                        (loop [cnt (long 0)]
+                          (when (> cnt -1)
+                            (when (> cnt 0)
+                              (.write source play-buffer 0 cnt))
+                            (recur (.read audio-stream play-buffer 0
+                                          buffer-size-in-bytes))))
+                        (.clear bbuffer)
+                        (.reset audio-stream)))
+                    (prn "dsp thread stopped"))]
+           
+           (prn "dsp thread started")
+           (reset! current-time (+ (* 0.001 (System/currentTimeMillis))
+                                   buffer-size-in-secs))
+           (if listener
+             (with-line-listener line listener (p))
+             (p)))
+         ))))
