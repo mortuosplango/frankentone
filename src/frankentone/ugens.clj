@@ -351,19 +351,15 @@ Returns a function with the following arguments: [amp freq]"
 
 
 (deftype tDelay
-    [^:unsynchronized-mutable ^long time
-     ^doubles line
+    [^java.nio.DoubleBuffer line
      ^long delay]
   clojure.lang.IFn
   (invoke ^double [_ input wet feedback]
-    (let [delayed (aget line time)
-          new-time (unchecked-inc time)]
-      (aset line time ^double (* feedback (+ input delayed)))
-      (set! time (if (= new-time delay)
-                   0
-                   new-time))
+    (let [delayed (.get line (.position line))]
+      (.put line ^double (* feedback (+ input delayed)))
+      (when-not (.hasRemaining line)
+        (.clear line))
       (+ input (* delayed wet)))))
-
 
 (defn delay-c
   "IIR comb without interpolation.
@@ -373,7 +369,7 @@ Returns a function with the following arguments: [amp freq]"
   Returns a function with the following arguments: [input wet feedback]"
   [max_delay]
   (let [delay (long (Math/ceil (* max_delay *sample-rate*)))]
-    (tDelay. 0 (double-array delay 0.0) delay)))
+    (tDelay. (java.nio.DoubleBuffer/allocate delay) delay)))
 
 
 (defprotocol IBiquad
