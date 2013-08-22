@@ -37,6 +37,10 @@
                  (play-note (+ now offset 0.1
                                (* beat note-length))
                             instrument (midi->hz inst) 0.2 note-length)
+                 (string? inst)
+                 (play-note (+ now offset 0.1
+                               (* beat note-length))
+                            instrument inst 0.2 note-length)
                  )))
             coll (range len)))))
 

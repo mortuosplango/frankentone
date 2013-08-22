@@ -47,6 +47,7 @@ options can be kept under `:disabled`."
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
                  [seesaw "1.4.3"]
-                 [overtone "0.8.1"]]
+                 [overtone "0.8.1"]
+                 [org.clojars.jeffsigmon/maryclient "4.3.0"]]
   :jvm-opts ~(jvm-opts)
   :main frankentone.core)
