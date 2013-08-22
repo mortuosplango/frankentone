@@ -100,6 +100,51 @@
   (tOsc. (double in-phase) (double (/ TAU *sample-rate*)) ))
 
 
+(deftype tImpulse
+    [^:unsynchronized-mutable ^double phase]
+  clojure.lang.IFn
+  (invoke ^double [_ amp freq]
+    (let [out (if (>= phase 1.0)
+                (do (set! phase (- phase 1.0))
+                    1.0)
+                0.0)]
+      (set! phase (+ phase (* freq sample-dur)))
+      out)))
+
+(defn impulse-c
+  "an impulse oscillator
+
+  Returns a function with the following arguments: [amp freq]"
+  [in-phase]
+  (tImpulse.  (if (= (double in-phase) 0.0)
+           1.0
+           (double in-phase))))
+
+
+(deftype tPulseCount
+    [^:unsynchronized-mutable ^double last
+     ^:unsynchronized-mutable ^double last-reset
+     ^:unsynchronized-mutable ^double count]
+  clojure.lang.IFn
+  (invoke ^double [_ trig reset]
+    (if (and (<= last-reset 0.0)
+             (> reset 0.0))
+      (set! count 0.0)
+      (when (and (<= last 0.0)
+               (> trig 0.0))
+        (set! count (+ count 1.0))))
+    (set! last-reset (double reset))
+    (set! last (double trig))
+    count))
+
+(defn pulse-count-c
+  "a pulse counter
+
+  Returns a function with the following arguments: [trig reset]"
+  []
+  (tPulseCount. 0.0 0.0 0.0))
+
+
 (deftype tFSinOsc
     [^:unsynchronized-mutable ^double y0
      ^:unsynchronized-mutable ^double y1
@@ -555,6 +600,33 @@ Returns a function with the following arguments: [amp freq]"
 (defn white-noise
   ^double []
   (- (rand 2.0) 1.0))
+
+
+(deftype tSIDNoise
+    [^:unsynchronized-mutable ^int gx1
+     ^:unsynchronized-mutable ^int gx2
+     ^double gf-scale]
+  clojure.lang.IFn
+  (invoke ^double [_]
+    (set! gx1 (unchecked-int (bit-xor gx1 gx2)))
+    (* (set! gx2
+             (unchecked-add-int
+              gx2
+              gx1))
+       gf-scale)))
+
+
+(defn sidnoise-c
+  "SID white noise
+
+  Based on http://www.musicdsp.org/showone.php?id=216
+
+  Returns a function with the following arguments: []"
+  []
+  (let [gf-scale (/ 1.0 Integer/MAX_VALUE)
+        gx1 (int (+ 0x67452301 Integer/MIN_VALUE))
+        gx2 (int (+ 0xefcdab89 Integer/MIN_VALUE))]
+    (tSIDNoise. gx1 gx2 gf-scale)))
 
 
 (deftype tPinkNoise
