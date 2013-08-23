@@ -596,10 +596,20 @@ Returns a function with the following arguments: [amp freq]"
                     0.0 0.0 0.0
                     0.0 0.0 4  omega-factor)))
 
+(deftype tWhiteNoise
+    [^java.util.concurrent.ThreadLocalRandom random]
+  clojure.lang.IFn
+  (invoke ^double [_]
+    (.nextDouble random -1.0 1.0)))
+
+(defn white-noise-c
+  "white noise"
+  []
+  (tWhiteNoise. (java.util.concurrent.ThreadLocalRandom/current)))
 
 (defn white-noise
   ^double []
-  (- (rand 2.0) 1.0))
+  (- (* (rand) 2.0) 1.0))
 
 
 (deftype tSIDNoise
@@ -632,7 +642,8 @@ Returns a function with the following arguments: [amp freq]"
 (deftype tPinkNoise
     [^:unsynchronized-mutable ^double b0
      ^:unsynchronized-mutable ^double b1
-     ^:unsynchronized-mutable ^double b2]
+     ^:unsynchronized-mutable ^double b2
+     ^tWhiteNoise white-noise]
   clojure.lang.IFn
   (invoke ^double [_]
     (* 0.33 (+
@@ -650,7 +661,8 @@ Returns a function with the following arguments: [amp freq]"
 
   Returns a function with the following arguments: []"
   []
-  (tPinkNoise. 0.0 0.0 0.0))
+  (tPinkNoise. 0.0 0.0 0.0
+               (white-noise-c)))
 
 
 (deftype tMoogff
