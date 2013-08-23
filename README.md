@@ -18,23 +18,23 @@ There's a tutorial in "Help->Getting Started".
 Thanks to the power of open source, large parts of this system are
 heavily inspired by or direct ports from other languages/systems.
 
-# Patterns
+### Patterns
 
 Based on Alex McLean's [Tidal](http://yaxu.org/tidal/)
 
-# DSP, Instruments, UGens
+### DSP, Instruments, UGens
 
 A lot of the DSP architecture, the Instrument system and a lot of
 UGens started as ports of Andrew Sorensen et. al.'s
 [Extempore](https://github.com/digego/extempore)
 
-# UGens, ...
+### UGens, ...
 
 As I used a lot of
 [SuperCollider](http://supercollider.sourceforge.net/) in my time, it
 is a major influence. Also I port[ed] some UGens.
 
-# Infrastructure
+### Infrastructure
 
 [Overtone](https://github.com/overtone/) is used in this project
 because it already provides a lot of useful infrastructure for music
