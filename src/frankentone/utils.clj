@@ -79,15 +79,17 @@
 (def scaling-factor (dec (Math/pow 2 15)))
 
 
-(defn scale-f->s [f]
+(defn scale-f->s
   "Scale a float value to a short value.
 
   Clips value at -1.0 and 1.0 before scaling."
+  [f]
   (short (* (clip-to-range f -1.0 1.0) scaling-factor)))
 
 
-(defn unchecked-scale-f->s [f]
+(defn unchecked-scale-f->s 
   "Scale a float value to a short value without range checking."
+  [f]
   (unchecked-short (* f scaling-factor)))
 
 
@@ -95,6 +97,18 @@
   "debugging parts of expressions"
   [x]
   `(let [x# ~x] (println "dbg:" '~x "=" x#) x#))
+
+
+(defn nth-prime
+  "the nth prime number."
+  [n]
+  (if (= n 0)
+    2
+    (nth (filter
+           #(.isProbablePrime (BigInteger/valueOf %) 5)
+           (take-nth 2 
+                     (range 1 Integer/MAX_VALUE)))
+         (int (dec n)))))
 
 
 (defmacro fn-c
