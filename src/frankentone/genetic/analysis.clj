@@ -17,6 +17,12 @@
     (.addAllOf fbin (FloatArrayList. (float-array array)))
     (.rms fbin)))
 
+(defn windowed-rms 
+  "Calculate the root mean square [RMS] value of the given array"
+  ^Double [array window-size hop]
+  (mapv rms
+        (partition window-size (* window-size hop) array)))
+
 
 (defn spectral-flatness
   "Calculate the spectral flatness for the given fft frame.
@@ -36,12 +42,12 @@
   (defn get-fft-mags
     "Calculates the fft magnitudes for the given buffer"
     ([buffer] (get-fft-mags buffer 1024 0.25))
-    ([buffer windowsize] (get-fft-mags buffer 1024 0.25))
-    ([buffer windowsize hop]
-       (let [window (if (= windowsize 1024)
+    ([buffer window-size] (get-fft-mags buffer 1024 0.25))
+    ([buffer window-size hop]
+       (let [window (if (= window-size 1024)
                       window-1024
-                      (mapv #(mhann-window % windowsize) (range windowsize)))
-             hop-in-samples (* windowsize hop)
+                      (mapv #(mhann-window % window-size) (range window-size)))
+             hop-in-samples (* window-size hop)
              num-windows (int (Math/ceil
                                (/ (count buffer) hop-in-samples)))]
          (mapv
@@ -54,11 +60,11 @@
                    )]
               ;; perform fft
               (.realForward
-               (FloatFFT_1D. windowsize)
+               (FloatFFT_1D. window-size)
                tmp-buf)
               ;; calc magnitudes
               (amap
-               (float-array (* 0.5 windowsize))
+               (float-array (* 0.5 window-size))
                i
                _
                ;; get magnitudes
@@ -72,8 +78,8 @@
                        (Math/sqrt (+
                                    (* real real)
                                    (* imag imag)))))))))
-          (partition windowsize 
-                     (* windowsize hop)
+          (partition window-size 
+                     (* window-size hop)
                      (repeat 0.0)
                      buffer))))))
 
@@ -81,11 +87,11 @@
   "Calculates the fft magnitudes for the given buffer"
   ([buf]
      (get-fft-mags buf 1024 0.5))
-  ([buf windowsize]
-     (get-fft-mags buf windowsize 0.5))
-  ([buf windowsize hob]
-     (let [fft (FFT. windowsize *sample-rate*)
-           spectrum (float-array (* 0.5 windowsize))]
+  ([buf window-size]
+     (get-fft-mags buf window-size 0.5))
+  ([buf window-size hob]
+     (let [fft (FFT. window-size *sample-rate*)
+           spectrum (float-array (* 0.5 window-size))]
        (.window fft (HannWindow.))
        (mapv (fn [buf]
                (.forward fft (float-array buf))
@@ -94,7 +100,7 @@
                       Float/MIN_VALUE
                       (min Float/MAX_VALUE
                            (.getBand fft i)))))
-             (partition windowsize (* hob windowsize) (repeat 0.0)
+             (partition window-size (* hob window-size) (repeat 0.0)
                         buf)))))
 
 (defn get-fft-weights
@@ -120,13 +126,13 @@
 
 
 (defn get-reference-map
-  [target-data]
-  (let [samples (first target-data)
-        fft (get-fft-mags samples 1024)]
+  [samples]
+  (let [window-size 1024
+        fft (get-fft-mags samples window-size)]
     (hash-map
      :samples samples
-     :x (second target-data)
-     :rms (double (rms samples))
+     :x (amap ^doubles samples i _ (double (/ i *sample-rate*)))
+     :rms (windowed-rms samples window-size 0.25)
      :smps (reduce #(+ (Math/abs ^double %1) (Math/abs ^double %2)) samples)
      :fft fft
      :fft-weights (get-fft-weights fft)
