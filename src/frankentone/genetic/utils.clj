@@ -17,7 +17,7 @@
      (reset-dsp!
       (binding [buffer (double-array *sample-rate* 0.0)]
         (let [
-              offset (if offset-p (double @current-time) 0.0)
+              offset (if offset-p (double (current-time)) 0.0)
               value-function (program->fn program)
               prev-samp (atom 0.0)]
           (fn ^Double [^Double x ^Long chan]

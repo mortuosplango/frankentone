@@ -153,6 +153,11 @@
          (prn "dsp thread stopped")))))
 
 
+(defn current-time []
+  (when @cplay
+    (.getCurrentTime ^tCPlay @cplay)))
+
+
 (defn constant-play
   "Play the given dsp function."
   ;; Accepts an optional listener function that will be called when a
@@ -182,11 +187,11 @@
                 (if (string? test-output)
                   false
                   (type test-output)))
-            (if (< (inc i) (.getChannels *default-output-format*))
+            (if (< (inc i) (.getChannels ^AudioFormat *default-output-format*))
               (recur (inc i))
               (do (reset! *dsp-fun* new-dsp-fn)
                   (if @cplay
-                    (.setFunc @cplay new-dsp-fn))
+                    (.setFunc ^tCPlay @cplay new-dsp-fn))
                   true)))))
     (do (prn "Can't reset! Is not a function!")
         false)))
@@ -213,7 +218,7 @@
   "Start the dsp engine."
   []
   (let [ncplay (constant-play *dsp-fun*)]
-   (if (or (nil? @*dsp*) (not (.isAlive @*dsp*)))
+   (if (or (nil? @*dsp*) (not (.isAlive ^Thread @*dsp*)))
      (do
        (reset! cplay ncplay)
        (let [thread (Thread. #(ncplay))]
@@ -227,14 +232,14 @@
   "Stop the dsp engine."
   []
   (if @cplay
-   (.stopDsp @cplay)))
+   (.stopDsp ^tCPlay @cplay)))
 
 
 (defn kill-dsp
   "Kill the dsp engine."
   []
   (stop-dsp)
-  (.stop @*dsp*))
+  (.stop ^Thread @*dsp*))
 
 
 (comment
