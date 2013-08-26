@@ -48,7 +48,8 @@ options can be kept under `:disabled`."
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
                  [seesaw "1.4.3"]
                  [overtone "0.8.1"]
-                 [org.clojars.jeffsigmon/maryclient "4.3.0"]]
-                 [incanter "1.5.1"]]
+                 [org.clojars.jeffsigmon/maryclient "4.3.0"]
+                 [ddf.minim "2.1.0"]
+                 [incanter "1.5.2"]]
   :jvm-opts ~(jvm-opts)
   :main frankentone.core)
