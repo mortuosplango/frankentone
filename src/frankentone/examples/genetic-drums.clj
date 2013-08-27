@@ -2,13 +2,13 @@
   (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples]
         [overtone.music time])
-  (:require [incanter core charts stats]))
+  (:require clojure.java.io))
 
 
 (defn pat [t]
   (play-pattern [
-                 - - hh - ||
-                 40 - - ||
+                 - - [hh - - -] - ||
+;;                 40 - - - - ||
                  - sn - sn ||
                  bd - bd - ||
                  (repeat 5 bd)
@@ -19,6 +19,8 @@
 (pat (+ (now) 500))
 
 (defn pat [_])
+
+
 
 (reset-dsp! (let [prev (atom 0.0)]
               (fn [x chan] (if (zero? chan)
@@ -71,9 +73,9 @@
                                               (keyword name) sample)
                       :terminals dsp-terminals
                       :functions dsp-functions)))
-    [ (load-sample "/Users/hb/src/frankentone/hihat-open.wav")
-      (load-sample "/Users/hb/src/frankentone/kick.wav")
-      (load-sample "/Users/hb/src/frankentone/snare-chili.wav")]
+    [ (load-sample (clojure.java.io/resource "hihat-open.wav"))
+      (load-sample (clojure.java.io/resource "kick.wav"))
+      (load-sample (clojure.java.io/resource "snare-chili.wav"))]
     ['hh 'bd 'sn])))
 
 

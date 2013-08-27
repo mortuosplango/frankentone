@@ -1,13 +1,14 @@
 (ns frankentone.examples.genetic
   (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples])
-  (:require [incanter core charts stats]))
+  (:require [incanter core charts stats]
+            clojure.java.io))
 
 
 (do
   (def reference
     (atom (get-reference-map
-           (load-sample "/Users/hb/src/frankentone/hihat-open.wav"))))
+           (load-sample (clojure.java.io/resource "hihat-open.wav")))))
   (def best-pg
     (atom
      {:program '(pmod (sin (* TAU (sin (* TAU x)))) (sin (* x Math/PI)))
