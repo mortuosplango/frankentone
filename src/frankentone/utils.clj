@@ -151,3 +151,11 @@
                             body)]
     `(let ~(deref vars#) (fn ~args
                            ~new-body#))))
+
+
+(defn hz->mel [freq]
+  (* 1127 (Math/log (+ 1.0 (/ freq 700.0)))))
+
+(defn mel->hz [mel]
+  (* 700 (- (Math/pow Math/E (/ mel 1127.0)) 1.0)))
+
