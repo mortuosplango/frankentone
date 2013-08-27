@@ -1,5 +1,6 @@
 (ns frankentone.utils
-  (:use clojure.walk))
+  (:use clojure.walk
+        frankentone.libs.app-icon))
 
 
 (def TAU (* Math/PI 2))

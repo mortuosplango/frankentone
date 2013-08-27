@@ -23,7 +23,7 @@ options can be kept under `:disabled`."
                                   ; setting promotes all live objects to the older
                                   ; generation, rather than copying them.
    :macosx
-   ["-Xdock:name=frankentone"]
+   ["-Xdock:name=franken[~]tone"]
    :disabled
    ["-XX:ConcGCThreads=2" ; Use 2 threads with concurrent gc collections
     "-XX:TieredCompilation" ; JVM7 - combine both client and server compilation
