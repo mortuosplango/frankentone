@@ -39,7 +39,7 @@
 ;;;;;;;; based on http://inovation.tistory.com/archive/20110403
 (comment let [mhann-window (memoize hann-window)
       window-1024 (mapv #(mhann-window % 1024) (range 1024))]
-  (defn get-fft-mags
+  (defn get-fft-mags-old
     "Calculates the fft magnitudes for the given buffer"
     ([buffer] (get-fft-mags buffer 1024 0.25))
     ([buffer window-size] (get-fft-mags buffer 1024 0.25))
@@ -49,7 +49,8 @@
                       (mapv #(mhann-window % window-size) (range window-size)))
              hop-in-samples (* window-size hop)
              num-windows (int (Math/ceil
-                               (/ (count buffer) hop-in-samples)))]
+                               (/ (count buffer) hop-in-samples)))
+             fft (FloatFFT_1D. window-size)]
          (mapv
           (fn [buf]
             (let [tmp-buf
@@ -60,7 +61,7 @@
                    )]
               ;; perform fft
               (.realForward
-               (FloatFFT_1D. window-size)
+               fft
                tmp-buf)
               ;; calc magnitudes
               (amap
