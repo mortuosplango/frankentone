@@ -1,4 +1,4 @@
-(ns frankentone.examples.genetic
+(ns frankentone.examples.genetic.genetic
   (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples])
   (:require [incanter core charts stats]

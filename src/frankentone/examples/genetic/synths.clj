@@ -1,4 +1,4 @@
-(ns frankentone.examples.genetic-drums
+(ns frankentone.examples.genetic.synths
   (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples]
         [overtone.music time])
