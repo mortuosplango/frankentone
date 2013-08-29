@@ -196,21 +196,21 @@
       (let [test-output (try
                           (new-dsp-fn (nows) i)
                           (catch Exception e
-                            (str "caught exception: " (.getMessage e)))
-                          )]
+                            (println "caught exception:\n"
+                                     (.getMessage e))))]
         (if (has-bad-value? test-output)
-            (do (prn "Can't reset! Function returns result of type "
-                     (type test-output))
-                (if (string? test-output)
-                  false
-                  (type test-output)))
-            (if (< (inc i) (.getChannels ^AudioFormat *default-output-format*))
-              (recur (inc i))
-              (do (reset! *dsp-fun* new-dsp-fn)
-                  (if @cplay
-                    (.setFunc @cplay new-dsp-fn))
-                  true)))))
-    (do (prn "Can't reset! Is not a function!")
+          (do (println "Can't reset! Function returns result of type"
+                       (type test-output))
+              (if (string? test-output)
+                false
+                (type test-output)))
+          (if (< (inc i) (.getChannels ^AudioFormat *default-output-format*))
+            (recur (inc i))
+            (do (reset! *dsp-fun* new-dsp-fn)
+                (if @cplay
+                  (.setFunc @cplay new-dsp-fn))
+                true)))))
+    (do (println "Can't reset! Is not a function!")
         false)))
 
 (defn silence!
