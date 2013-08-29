@@ -5,13 +5,18 @@
   (:require clojure.java.io))
 
 
+
+
 (defn pat [t]
   (play-pattern [
                  - - [hh - - -] - ||
-;;                 40 - - - - ||
-                 - sn - sn ||
+   ;;              (repeat 4 [- hh]) ||
+                 ;;                 40 - - - - ||
+                 - - hh ||
+                 [sn sn] - - ||
+ ;;               - sn - sn ||
                  bd - bd - ||
-                 (repeat 5 bd)
+;;                 (repeat 4 [bd - - bd])
                  ] 2.0 0.5 :default (/ t 1000.0))
   (let [next (+ t 2000)]
     (apply-at next #'pat [next])))
@@ -19,7 +24,6 @@
 (pat (+ (now) 500))
 
 (defn pat [_])
-
 
 
 (reset-dsp! (let [prev (atom 0.0)]
@@ -55,7 +59,7 @@
                (if (< x len)
                  (* amp (instfn x))
                  0.0)))))
-  (Thread/sleep 5000))
+  (Thread/sleep (* 5 4 1000)))
 
 
 ;;;; Run it 
@@ -66,13 +70,16 @@
       ;; init instruments
       (eval (conj '((fn [x y z] (fn [x] 0.0)))
                   (symbol name) 'definst))
-      (future (evolve 100 (memoize
-                           (partial error-fn (get-reference-map
-                                              sample)))
+      (future (evolve 200 (memoize
+                           (partial error-fn
+                                    (get-reference-map sample)
+                                    [:mfcc]))
                       :best-callback (partial best-callback
                                               (keyword name) sample)
                       :terminals dsp-terminals
-                      :functions dsp-functions)))
+                      :functions dsp-functions))
+      (Thread/sleep (* 5 1000.0))
+      )
     [ (load-sample (clojure.java.io/resource "hihat-open.wav"))
       (load-sample (clojure.java.io/resource "kick.wav"))
       (load-sample (clojure.java.io/resource "snare-chili.wav"))]

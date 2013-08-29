@@ -13,16 +13,6 @@
     (atom
      {:program '(pmod (sin (* TAU (sin (* TAU x)))) (sin (* x Math/PI)))
       :error 1000.0
-      :samples (let [
-                     value-function (program->fn @best-pg)]
-                 (mapv (let [prev-samp (atom 0.0)]
-                         (fn ^Double [[^Double x ^Double y]]
-                           (hardclip
-                            (swap!
-                             prev-samp
-                             #(filter-bad-value (value-function x %))
-                             ))))
-                       @target-data))
       :changed true})))
 
 
@@ -38,7 +28,9 @@
 
 (time
  (dotimes [i 10]
-   (error-fn @reference '(if>0 (+ (* (* *sample-rate* x prev) (+ (* 4.239626725410776 (sin (+ *sample-rate* (* *sample-rate* x prev))) prev) -0.22132726531217406) prev) (mul-sin TAU x)) (+ x x) (- (mul-cos *sample-rate* (mul-sin TAU x)) 0.023044934598853834)))))
+   (error-fn @reference
+             [:mfcc]
+             '(if>0 (+ (* (* *sample-rate* x prev) (+ (* 4.239626725410776 (sin (+ *sample-rate* (* *sample-rate* x prev))) prev) -0.22132726531217406) prev) (mul-sin TAU x)) (+ x x) (- (mul-cos *sample-rate* (mul-sin TAU x)) 0.023044934598853834)))))
 
 
 (defn best-callback

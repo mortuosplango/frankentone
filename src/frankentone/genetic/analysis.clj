@@ -1,5 +1,5 @@
 (ns frankentone.genetic.analysis
-  (:use [frankentone.genetic hanning]
+  (:use [frankentone.genetic hanning mfcc]
         [frankentone utils])
   (:require [incanter core charts stats])
   (:import [edu.emory.mathcs.jtransforms.fft FloatFFT_1D]
@@ -129,6 +129,7 @@
 (defn get-reference-map
   [samples]
   (let [window-size 1024
+        mfcc-coefs 40
         fft (get-fft-mags samples window-size)]
     (hash-map
      :samples samples
@@ -136,6 +137,8 @@
      :rms (windowed-rms samples window-size 0.25)
      :smps (reduce #(+ (Math/abs ^double %1) (Math/abs ^double %2)) samples)
      :fft fft
+     :mfcc-coefs mfcc-coefs
+     :mfcc (mfcc fft mfcc-coefs)
      :fft-weights (get-fft-weights fft)
      :spectral-flatness (mapv spectral-flatness fft))))
 
