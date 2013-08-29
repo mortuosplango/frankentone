@@ -6,7 +6,7 @@
 (defn make-paint-scope [^java.nio.ShortBuffer b]
   (let [w 256
         h 256
-        x-array (int-array w)
+        x-array (int-array (range w))
         y1-array (int-array w)
         y2-array (int-array w)
         kolor (color 0 140 236)
@@ -14,22 +14,22 @@
         h4 (int (/ h 4))
         h34 (int (* h 3/4))
         step (int (/ (* 2 *default-buffer-size*) w))
-        steps (int-array (mapv #(* step %) (range w)))
+        steps1 (int-array (mapv #(* step %) (range w)))
+        steps2 (int-array (mapv #(mod (inc (* step %))
+                                      (* 2 *default-buffer-size*))
+                                (range w)))
         y-scale (/ h4 Short/MAX_VALUE)]
-    (dotimes [i w]
-      (aset ^ints x-array i i))
     
     (fn [_
         ^java.awt.Graphics2D g]
       (dotimes [i w]
         (aset ^ints y1-array i
               (unchecked-add-int
-               (* (.get b (aget steps i)) y-scale)
+               (* (.get b (aget ^ints steps1 i)) y-scale)
                h4))
         (aset ^ints y2-array i
               (unchecked-add-int
-               (* (.get b (unchecked-inc-int
-                           (aget steps i))) y-scale)
+               (* (.get b (aget ^ints steps2 i)) y-scale)
                h34)))
       (.setColor g kolor)
       (.setStroke g stroke-t)
