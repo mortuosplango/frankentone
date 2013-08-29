@@ -11,7 +11,7 @@
        mul (* 3.0 (/ 1.0 126.0))
        pc (pulse-count-c)
        impulse (impulse-c 0.0)
-       hpf (hpf-c)]
+       hpf [(hpf-c) (hpf-c)]]
    (fn [x chan]
      (when (zero? chan)
        (reset!
@@ -19,7 +19,7 @@
         (long (pc (impulse 1.0 8000.0) 0.0))))
      (let [t @prev]
        (Math/tanh
-        (hpf
+        ((nth hpf chan)
          (*
           mul
           (mod (-
