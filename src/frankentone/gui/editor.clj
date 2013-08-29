@@ -194,6 +194,7 @@
      (let [result
            (-> (dialog :content "Save file before closing?"
                        :type :question
+                       :resizable? false
                        :option-type :yes-no-cancel)
                pack! show!)]
        (when (= result :success)
