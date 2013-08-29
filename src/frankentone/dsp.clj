@@ -11,7 +11,7 @@
 
 
 (defonce ^:dynamic *dsp* (atom nil))
-(def ^:dynamic *default-buffer-size* (long (/ 8192 1)))
+(def ^:dynamic *default-buffer-size* (long (/ 8192 4)))
 (defonce cplay (atom nil))
 
 
@@ -35,24 +35,35 @@
     :endianness :little-endian}))
 
 
-(defprotocol ICPlay
+(defprotocol IDSPLoop
   (setFunc [_ func])
+  (setCallbackFunc [_ func])
   (getCurrentTime [_])
+  (getDspBuf [_])
   (stopDsp [_]))
 
 
-(deftype tCPlay
+(deftype tDSPLoop
     [^:unsynchronized-mutable ^clojure.lang.IFn dsp-func
      ^:unsynchronized-mutable ^java.lang.Boolean playing
      ^:unsynchronized-mutable ^double current-time
-     ^long buffer-size]
-  ICPlay
+     ^:unsynchronized-mutable ^clojure.lang.IFn callback-fn
+     ^long buffer-size
+     ^java.nio.ByteBuffer bbuffer
+     ^java.nio.ShortBuffer sbuffer
+     ^java.nio.ShortBuffer dsp-buf]
+  IDSPLoop
   (setFunc [_ func]
     (set! dsp-func func))
+  (setCallbackFunc [_ func]
+    (set! callback-fn func))
   (getCurrentTime [_]
     current-time)
+  (getDspBuf [_]
+    dsp-buf)
   (stopDsp [_]
     (set! playing false))
+
   clojure.lang.IFn
   (invoke [_]
      (let [
@@ -73,7 +84,6 @@
                                            *default-output-format*))))
            
            play-buffer (byte-array buffer-size-in-bytes)
-           bbuffer (java.nio.ByteBuffer/allocate buffer-size-in-bytes)
 
            time-step (double (/ 1.0 *sample-rate*))
            c-time (atom 0.0)]
@@ -84,13 +94,11 @@
                              time-step))
        (reset! c-time current-time)
        (with-data-line [#^SourceDataLine source line]
-         (.order bbuffer java.nio.ByteOrder/LITTLE_ENDIAN)
          (let [audio-stream (AudioInputStream.
                              (java.io.ByteArrayInputStream.
                               (.array bbuffer))
                              *default-format*
                              -1)
-               sbuffer (.asShortBuffer bbuffer)
                sarray (short-array (* 8192 num-channels))]
            (if (= num-channels 2)
              (while playing
@@ -115,6 +123,8 @@
                             current-time
                             1)))))
                (.position bbuffer buffer-size-in-bytes-1)
+               (when callback-fn
+                 (callback-fn))
 
                ;; play*
                (loop [cnt (long 0)]
@@ -155,7 +165,7 @@
 
 (defn current-time []
   (when @cplay
-    (.getCurrentTime ^tCPlay @cplay)))
+    (.getCurrentTime ^tDSPLoop @cplay)))
 
 
 (defn constant-play
@@ -164,7 +174,14 @@
   ;; line event is raised, taking the event type, the line and the stream
   ;; position as arguments. Returns the number of bytes played.
   ([atom-fn & [listener]]
-     (tCPlay. @atom-fn true 0.0 *default-buffer-size*)))
+     (let [num-channels (long (.getChannels ^AudioFormat *default-output-format*))
+           buffer-size-in-bytes (long (* *default-buffer-size* num-channels 2))
+           bbuffer (.order (java.nio.ByteBuffer/allocate buffer-size-in-bytes)
+                           java.nio.ByteOrder/LITTLE_ENDIAN)
+           sbuffer (.asShortBuffer bbuffer)
+           dsp-buf (.asReadOnlyBuffer sbuffer)]
+       (tDSPLoop. @atom-fn true 0.0 nil *default-buffer-size*
+                  bbuffer sbuffer dsp-buf))))
 
 
 (defn reset-dsp!
@@ -191,7 +208,7 @@
               (recur (inc i))
               (do (reset! *dsp-fun* new-dsp-fn)
                   (if @cplay
-                    (.setFunc ^tCPlay @cplay new-dsp-fn))
+                    (.setFunc @cplay new-dsp-fn))
                   true)))))
     (do (prn "Can't reset! Is not a function!")
         false)))
@@ -232,7 +249,7 @@
   "Stop the dsp engine."
   []
   (if @cplay
-   (.stopDsp ^tCPlay @cplay)))
+   (.stopDsp @cplay)))
 
 
 (defn kill-dsp
