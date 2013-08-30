@@ -1,11 +1,7 @@
 (ns frankentone.examples.getting-started
-  (:use frankentone.dsp
-        frankentone.ugens
-        frankentone.utils
-        frankentone.patterns
-        frankentone.instruments
-        frankentone.examples.instruments
-        overtone.music.time
+  (:use [frankentone dsp ugens utils patterns instruments]
+        [frankentone.examples instruments]
+        [overtone.music time pitch]
         clojure.repl))
 
 ;; start the engines
