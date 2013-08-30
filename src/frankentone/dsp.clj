@@ -221,14 +221,21 @@
 
 (defn white-noise!
   "Resets the dsp-function to white noise."
-  []
-  (reset-dsp! (fn [x chan] (- 1.0 (rand 2.0)))))
+  ([] (white-noise! 1.0))
+  ([amp] (reset-dsp! (fn-c [x chan] (* amp (white-noise-c))))))
 
+
+(defn pink-noise!
+  "Resets the dsp-function to white noise."
+  ([] (pink-noise! 1.0))
+  ([amp] (reset-dsp! (fn-c [x chan] (* amp (if (zero? chan)
+                                             (pink-c)
+                                             (pink-c)))))))
 
 (defn sine!
   "Resets the dsp-function to a 440Hz sine wave."
-  []
-  (reset-dsp! (fn [x chan] (Math/sin (* TAU 440.0 x)))))
+  ([] (sine! 1.0))
+  ([amp] (reset-dsp! (fn [x chan] (* amp (Math/sin (* TAU 440.0 x)))))))
 
 
 (defn start-dsp
