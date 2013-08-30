@@ -8,7 +8,7 @@
             [seesaw.rsyntax :as rsyntax]
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
-            [frankentone instruments patterns utils ugens live])
+            [frankentone.gui scope])
   (:import
    (java.io Writer)
    (javax.swing.text DefaultEditorKit)
@@ -148,7 +148,9 @@
            [current-file-label "dock south"]]))
 
 
-(defn select-file [type] (choose-file main-panel :type type))
+(defn select-file [type] (choose-file main-panel
+                                      :type type
+                                      :dir (.getParent (get-current-file))))
 
 
 (defn a-new [e]
@@ -227,14 +229,7 @@
         (with-out-str-and-value
           (try 
             (load-string
-             (str "(ns frankentone.live
-  (:use frankentone.dsp
-        frankentone.ugens
-        frankentone.utils
-        frankentone.patterns
-        frankentone.instruments
-        overtone.music.time
-        clojure.repl)) \n" 
+             (str "(in-ns 'frankentone.live)" 
                   to-eval))
             (catch Exception e e)))]
     (invoke-later (set-status "Result: " (last result))
@@ -251,15 +246,8 @@
   (let [result
         (with-out-str
           (try 
-            (load-string
-             (str "(ns frankentone.live
-  (:use frankentone.dsp
-        frankentone.ugens
-        frankentone.utils
-        frankentone.patterns
-        frankentone.instruments
-        overtone.music.time
-        clojure.repl)) \n"
+            (load-string 
+             (str "(in-ns 'frankentone.live)"
                   \( "doc " symbol \) ))
             (catch Exception e e)))]
     (if (= result "")
@@ -444,7 +432,14 @@
                                      (open-file (file
                                                  "src/frankentone/examples/instruments.clj")))
                                    :name "Example instruments"
-                                   :tip "Open the example instruments.")])])))
+                                   :tip "Open the example instruments.")
+                           (action :handler
+                                   (fn [e]
+                                     (open-file (file
+                                                 "src/frankentone/examples/sampled.clj")))
+                                   :name "How to use samples"
+                                   :tip "Open the samples example.")
+                           ])])))
 
 
 (defn run []

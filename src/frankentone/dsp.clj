@@ -163,7 +163,7 @@
          (prn "dsp thread stopped")))))
 
 
-(defn current-time []
+(defn current-dsp-time []
   (when @cplay
     (.getCurrentTime ^tDSPLoop @cplay)))
 
