@@ -1,8 +1,10 @@
 franken[~]tone
 ===========
 
-Experimental library for live coding in clojure. Tries to play nice
-with overtone. Steals a lot of ideas from other live coding
+![frankentone logo](https://raw.github.com/mortuosplango/frankentone/master/resources/frankentone-logo.png)
+
+Experimental live coding environment for Clojure. Tries to play nice
+with Overtone. Steals a lot of ideas from other live coding
 environments.
 
 ## Usage
