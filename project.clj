@@ -42,8 +42,8 @@ options can be kept under `:disabled`."
 (defproject frankentone "0.1.0-SNAPSHOT"
   :description "Experimental library for live coding."
   :url "https://github.com/mortuosplango/frankentone"
-  :license {:name "Eclipse Public License"
-            :url "http://www.eclipse.org/legal/epl-v10.html"}
+  :license {:name "GNU General Public License 3"
+            :url "https://www.gnu.org/licenses/gpl.txt"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
                  [seesaw "1.4.3"]

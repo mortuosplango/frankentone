@@ -45,6 +45,9 @@ programming on Clojure.
 
 ## License
 
-Copyright © 2013 Holger Ballweg <mortuos.plango@gmail.com>
+Except where otherwise noted, all code is Copyright 2013 Holger Ballweg.
 
-Distributed under the Eclipse Public License, the same as Clojure.
+This project is released under the terms of the GNU General
+Public License, version 3.  The license is available from
+[gnu.org/licenses](http://www.gnu.org/licenses/) and as LICENSE.txt at the root of this distribution.
+
