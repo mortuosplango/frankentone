@@ -32,34 +32,36 @@
 
 ;; some lovely clipnoise:
 (reset-dsp! (fn [time chan]
-	(* 0.1 (rand-nth [-1.0 1.0]))))
+              (* 0.1 (rand-nth [-1.0 1.0]))))
 
 
 ;; write your own saw wave
 (reset-dsp! 
-	(fn [time channel]
-	(if (zero? channel) 
-		(* (mod time 0.010) 90.0)
-		(* (mod time 0.0101) 90.0))))
+ (fn [time channel]
+   (* 0.1
+      (if (zero? channel) 
+        (* (mod time 0.010) 90.0)
+        (* (mod time 0.0101) 90.0)))))
 
 ;; abstract the saw
 (defn saw [x freq] 
-	(let [modu (/ 1.0 freq)]
-		(* (mod x modu) freq)))
+  (let [modu (/ 1.0 freq)]
+    (* (mod x modu) freq)))
 
 ;; another way to use the channel argument
 (reset-dsp! 
-	(fn [x chan]
-		(saw x (nth [90 91] chan))))
+ (fn [x chan]
+   (* 0.1 (saw x (nth [90 91] chan)))))
 
 ;; use the provided ugens to filter your custom dsp code
 (reset-dsp! 
-	(let [lowpass (lpf-c)]
-		(fn [x chan]
-			(lowpass
-				(saw x (nth [80 80.1] chan))
-				440
-				1.0))))
+ (let [lowpass (lpf-c)]
+   (fn [x chan]
+     (* 0.1
+        (lowpass
+         (saw x (nth [80 80.1] chan))
+         440
+         1.0)))))
 
 ;; let's play an instrument instead!
 (reset-dsp! 
@@ -82,14 +84,14 @@
 
 ;; add a second layer
 (play-pattern [60 - 62 64 68 :|
-				36 38] 2.0 0.5)
+               36 38] 2.0 0.5)
 
 ;; want to play a different instrument?
 ;; first write your own instrument
 (definst my-inst 
-	(fn [freq amp dur]
-        (fn [time]
-           (* amp (mod time 1.0) (saw time freq )))))
+  (fn [freq amp dur]
+    (fn [time]
+      (* amp (mod time 1.0) (saw time freq )))))
 
 ;; add instrument to dsp function
 (reset-dsp!
@@ -101,5 +103,32 @@
 
 ;; and then play it
 (play-pattern [60 - 62 64 68 :|
-				36 38] 2.0 0.5 :my-inst)
+               36 38] 2.0 0.5 :my-inst)
 
+
+;; play the pattern repeatedly
+(defn pat [t]
+  (play-pattern [60 - 62 64 68 :|
+                 36 38] 2.0 0.5 :my-inst)
+  (let [next-t (+ t 2000)]
+    (apply-at next-t #'pat [next-t])))
+
+(pat (+ (now) 500))
+
+;; redefine the function to stop the repetition
+(defn pat [t])
+
+
+;; introduce a variation over time
+(defn pat2 [t i]
+  (play-pattern 
+   (mapv #(if (number? %) (+ % i) %)
+         [60 - 62 64 68 :|
+          36 38]) 2.0 0.5 :my-inst)
+  (let [next-t (+ t 2000)]
+    (apply-at next-t #'pat2 [next-t (mod (inc i) 8)])))
+
+(pat2 (+ (now) 500) 0)
+
+;; redefine the function to stop the repetition
+(defn pat2 [_ _])
