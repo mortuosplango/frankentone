@@ -12,7 +12,6 @@
             frankentone.speech
 
             frankentone.gui.scope
-            frankentone.gui.editor
 
             frankentone.examples.instruments
 
@@ -48,7 +47,6 @@
                 frankentone.speech
 
                 frankentone.gui.scope
-                frankentone.gui.editor
 
                 frankentone.examples.instruments
 

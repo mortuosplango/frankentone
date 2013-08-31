@@ -2,18 +2,20 @@
 ;; https://github.com/daveray/seesaw/blob/develop/test/seesaw/test/examples/text_editor.clj
 
 (ns frankentone.gui.editor
-  (:use [seesaw core chooser mig]
+  (:use [seesaw core chooser mig keymap]
         [clojure.java.io :only [file resource]])
   (:require overtone.music.time
             [seesaw.rsyntax :as rsyntax]
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
-            [frankentone.gui scope])
+            [frankentone.gui scope]
+            [frankentone instruments patterns])
   (:import
    (java.io Writer)
    (javax.swing.text DefaultEditorKit)
    (java.awt Container)
    (java.io File)
+   (java.awt.im InputContext)
    (org.fife.ui.rtextarea RTextScrollPane
                           RTextAreaEditorKit)
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea
@@ -27,48 +29,52 @@
 (native!)
 
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
-  (let [input-map (.getInputMap editor)]
-    (doto input-map
-      (.put
-       (keystroke/keystroke "menu D")
-       "none")
-      (.put
-       (keystroke/keystroke "alt D")
-       DefaultEditorKit/deleteNextWordAction)
-      (.put
-       (keystroke/keystroke "alt DELETE")
-       RTextAreaEditorKit/rtaDeletePrevWordAction)
-      (.put
-       (keystroke/keystroke "control A")
-       DefaultEditorKit/beginLineAction)
-      (.put
-       (keystroke/keystroke "control E")
-       DefaultEditorKit/endLineAction)
-      (.put
-       (keystroke/keystroke "control P")
-       DefaultEditorKit/upAction)
-      (.put
-       (keystroke/keystroke "control N")
-       DefaultEditorKit/downAction)
-      (.put
-       (keystroke/keystroke "control F")
-       DefaultEditorKit/forwardAction)
-      (.put
-       (keystroke/keystroke "control B")
-       DefaultEditorKit/backwardAction)
-      (.put
-       (keystroke/keystroke "control D")
-       DefaultEditorKit/deleteNextCharAction)
-      (.put
-       (keystroke/keystroke "control K")
-       RTextAreaEditorKit/rtaDeleteRestOfLineAction))))
+  (let [neo (= (.hashCode (.getLocale (InputContext/getInstance)))
+               1921505307)
+        shortcuts (list
+                   ["menu D" "menu SEMICOLON" "none"]
+                   ["menu D" "menu D" "none"]
+                   ["menu ENTER" "menu ENTER" "none"]
+                   ["shift ENTER" "shift ENTER" "none"]
+                   ["alt D" "alt SEMICOLON"
+                    DefaultEditorKit/deleteNextWordAction]
+                   ["alt DELETE" "alt DELETE"
+                    RTextAreaEditorKit/rtaDeletePrevWordAction]
+                   ["control A" "control D"
+                    DefaultEditorKit/beginLineAction]
+                   ["control E" "control F"
+                    DefaultEditorKit/endLineAction]
+                   ["control P" "control V"
+                    DefaultEditorKit/upAction]
+                   ["control N" "control J"
+                    DefaultEditorKit/downAction]
+                   ["control F" "control O"
+                    DefaultEditorKit/forwardAction]
+                   ["control B" "control N"
+                    DefaultEditorKit/backwardAction]
+                   ["control D" "control SEMICOLON"
+                    DefaultEditorKit/deleteNextCharAction]
+                   ["control K" "control Y"
+                    RTextAreaEditorKit/rtaDeleteRestOfLineAction])]
+    (let [input-map (.getInputMap editor)]
+      (if neo
+        (do (doall (map #(.remove input-map (keystroke/keystroke (first %)))
+                        shortcuts))
+            (doall (map #(.put input-map (keystroke/keystroke (second %))
+                               (last %))
+                        shortcuts)))
+        (doall (map #(.put input-map (keystroke/keystroke (first %))
+                           (last %))
+                    shortcuts))))))
 
 
-(def open-files (atom {
-                       (.getPath (file (System/getProperty "user.home") ".ftscratch"))
-                       (file (System/getProperty "user.home") ".ftscratch")}))
+(def open-files
+  (atom {
+         (.getPath (file (System/getProperty "user.home") ".ftscratch"))
+         (file (System/getProperty "user.home") ".ftscratch")}))
 
-(when-not (.exists ^File (val (first @open-files))) (spit (val (first @open-files)) ""))
+(when-not (.exists ^File (val (first @open-files)))
+  (spit (val (first @open-files)) ""))
 
 (def current-file-label (label :text "" :font "SANSSERIF-PLAIN-8"))
 
@@ -76,7 +82,7 @@
   (let [editor-tab (rsyntax/text-area
                     :text file
                     :syntax :clojure
-                    :tab-size 4)]
+                    :tab-size 2)]
     (pimp-editor-keymap editor-tab)
     {:title (.getName file)
      :tip (.getPath file)
@@ -162,17 +168,17 @@
         (spit selected "")
         (add-editor-tab-to-editor
          (make-editor-tab selected))
-          ;;(text! (get-active-editor-tab) "")
+        ;;(text! (get-active-editor-tab) "")
         (set-status "Created a new file.")))))
 
 
 (defn open-file [^File file]
   (if (get @open-files (.getPath file))
     (do (loop [i 0]
-       (if (= (.getToolTipTextAt editor i) (.getPath file))
-         (.setSelectedIndex editor i)
-         (when (< (inc i) (.getTabCount editor))
-           (recur (inc i)))))
+          (if (= (.getToolTipTextAt editor i) (.getPath file))
+            (.setSelectedIndex editor i)
+            (when (< (inc i) (.getTabCount editor))
+              (recur (inc i)))))
         (set-status (.getName file) " already opened. Tab is now selected."))
     (do (swap! open-files assoc (.getPath file) file)
         (add-editor-tab-to-editor
@@ -258,42 +264,43 @@
 
 
 (defn get-region-boundaries [^RSyntaxTextArea editor pos]
-  (when-let [region (first (let [folds (.getFolds (LispFoldParser.) editor)]
-                             (doall (filter
-                                     #(do
-                                        ;;(println %1 pos)
-                                        (.containsOrStartsOnLine %1
-                                                                 (.getLineOfOffset
-                                                                  editor
-                                                                  pos)))
-                                     folds))))]
+  (when-let [region (first
+                     (let [folds (.getFolds (LispFoldParser.) editor)]
+                       (doall (filter
+                               #(do
+                                  (.containsOrStartsOnLine %1
+                                                           (.getLineOfOffset
+                                                            editor
+                                                            pos)))
+                               folds))))]
     ;;(println region)
     (list (.getStartOffset region)
           (min (inc (.getEndOffset region)) (count (text editor))))))
 
 
-(defn a-eval-selection [e]
-  (future (when-let [to-eval (.getSelectedText (get-active-editor-tab))]
-     (eval-string to-eval))))
-
 
 (defn a-eval-selection-or-line [e]
-  (future (if-let [to-eval (.getSelectedText (get-active-editor-tab))]
-     (eval-string to-eval)
-     (let [line (.getLineOfOffset (get-active-editor-tab) (.getCaretPosition (get-active-editor-tab)))]
-       (eval-string (subs (text (get-active-editor-tab))
-                          (.getLineStartOffset (get-active-editor-tab) line)
-                          (.getLineEndOffset (get-active-editor-tab) line)
-                          ))))))
+  (future
+    (if-let [to-eval (.getSelectedText (get-active-editor-tab))]
+            (eval-string to-eval)
+            (let [line (.getLineOfOffset
+                        (get-active-editor-tab)
+                        (.getCaretPosition (get-active-editor-tab)))]
+              (eval-string (subs (text (get-active-editor-tab))
+                                 (.getLineStartOffset (get-active-editor-tab) line)
+                                 (.getLineEndOffset (get-active-editor-tab) line)
+                                 ))))))
 
 
 (defn a-eval-region-or-line [e]
-  (future (if-let [to-eval (get-region-boundaries
+  (future
+    (if-let [to-eval (get-region-boundaries
                             (get-active-editor-tab)
                             (.getCaretPosition (get-active-editor-tab)))]
             (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
             (let [line (.getLineOfOffset (get-active-editor-tab)
-                                         (.getCaretPosition (get-active-editor-tab)))]
+                                         (.getCaretPosition
+                                          (get-active-editor-tab)))]
               (eval-string (subs (text (get-active-editor-tab))
                                  (.getLineStartOffset (get-active-editor-tab) line)
                                  (.getLineEndOffset (get-active-editor-tab) line)
@@ -346,6 +353,10 @@
       (show-documentation (.getLexeme to-look-up)))))
 
 
+(defn a-open-file [path e]
+  (open-file (file path)))
+
+
 (def menus
   (let [a-new (action :handler a-new :name "New"
                       :tip "Create a new file."
@@ -360,8 +371,8 @@
                           :tip "Save the current file."
                           :key "menu shift S")
         a-close-tab (action :handler a-close-tab :name "Close tab"
-                          :tip "Close the current tab."
-                          :key "menu W")
+                            :tip "Close the current tab."
+                            :key "menu W")
         a-exit (action :handler a-exit :name "Exit"
                        :tip "Exit the editor.")
         a-copy (action :handler a-copy :name "Copy"
@@ -373,22 +384,40 @@
         a-cut (action :handler a-cut :name "Cut"
                       :tip "Cut text to the clipboard."
                       :key "menu X")
-        a-eval-region-or-line (action :handler a-eval-region-or-line :name "Eval region"
-                                 :tip "Evaluate the region which the cursor is in"
-                                 :key "control alt X")
-        a-eval-selection (action :handler a-eval-selection :name "Eval selection"
-                                 :tip "Evaluate the selected text"
-                                 :key "menu shift E")
-        a-eval-selection-or-line (action :handler a-eval-selection-or-line
-                                         :name "Eval selection or line"
-                                         :tip "Evaluate the selected text or the current line"
-                                         :key "menu E")
+        a-eval-region-or-line (action
+                               :handler a-eval-region-or-line
+                               :name "Evaluate region or line"
+                               :tip "Evaluate the region which the cursor is in"
+                               :key "menu ENTER")
+        a-eval-selection-or-line (action
+                                  :handler a-eval-selection-or-line
+                                  :name "Evaluate selection or line"
+                                  :tip "Evaluate the selected text"
+                                  :key "shift ENTER")
+        a-start-dsp (action :handler (fn [e] (dsp/start-dsp))
+                            :name "Start DSP loop")
+        a-stop-dsp (action :handler (fn [e] (dsp/stop-dsp))
+                           :name "Stop DSP loop")
+        a-stop (action :handler (fn [e]
+                                  (overtone.at-at/stop-and-reset-pool!
+                                   overtone.music.time/player-pool)
+                                  (dsp/silence!))
+                       :name "Set DSP fn to silence and cancel events"
+                       :key "menu PERIOD")
+        a-stop-scheduled (action
+                          :handler  (fn [e]
+                                      (overtone.at-at/stop-and-reset-pool!
+                                       overtone.music.time/player-pool))
+                          :name "Cancel scheduled events")
+        a-scope (action :handler (fn [e] (frankentone.gui.scope/show-scope))
+                        :name "Show stethoscope")
         a-docstring (action :handler a-docstring :name "Documentation for symbol"
                             :tip "Show documentation for symbol"
                             :key "menu D")
         a-open-source (action :handler a-open-source :name "Source for symbol"
-                            :tip "Look up implementation"
-                            :key "menu I")]
+                              :tip "Look up implementation"
+                              :key "menu I")]
+    
     (menubar
      :items [(menu :text "File" :items [a-new a-open a-save a-save-as
                                         a-close-tab
@@ -396,50 +425,61 @@
                                         a-exit])
              (menu :text "Edit" :items [a-copy a-cut a-paste])
              (menu :text "Code" :items [a-eval-selection-or-line
-                                        a-eval-selection
                                         a-eval-region-or-line
                                         (separator)
                                         a-open-source])
+             (menu :text "DSP" :items [a-start-dsp
+                                       a-stop-dsp
+                                       a-stop
+                                       a-stop-scheduled
+                                       (separator)
+                                       a-scope])
              (menu :text "Documentation" :items
-                   (conj (mapv (fn [[namespace name]]
-                            (menu :text name
-                                  :items
-                                  (mapv (fn [item]
-                                          (action :handler (fn [e]
-                                                             (show-documentation (str item)))
-                                                  :name (str item)
-                                                  :tip (str "Show documentation for " item))
-                                          ) (-> namespace ns-publics keys sort))))
+                   (conj (mapv
+                          (fn [[namespace name]]
+                            (menu
+                             :text name
+                             :items
+                             (mapv (fn [item]
+                                     (action
+                                      :handler (fn [e]
+                                                 (show-documentation (str item)))
+                                      :name (str item)
+                                      :tip (str "Show documentation for " item)))
+                                   (-> namespace ns-publics keys sort))))
                           [['frankentone.dsp "DSP"]
                            ['frankentone.instruments "Instruments"]
                            ['frankentone.patterns "Patterns"]
+                           ['frankentone.speech "Speech"]
+                           ['frankentone.entropy.entropy "Entropy"]
                            ['frankentone.ugens "UGens"]
                            ['frankentone.utils "Utils"]
                            ['overtone.music.time "Overtone->Time"]
-                           ['overtone.music.pitch "Overtone->Pitch"]
-                           ])
+                           ['overtone.music.pitch "Overtone->Pitch"]])
                          (separator)
                          a-docstring))
+             
              (menu :text "Help"
-                   :items [(action :handler
-                                   (fn [e]
-                                     (open-file (file
-                                                 "src/frankentone/examples/getting-started.clj")))
-                                   :name "Getting started"
-                                   :tip "Open the tutorial.")
-                           (action :handler
-                                   (fn [e]
-                                     (open-file (file
-                                                 "src/frankentone/examples/instruments.clj")))
-                                   :name "Example instruments"
-                                   :tip "Open the example instruments.")
-                           (action :handler
-                                   (fn [e]
-                                     (open-file (file
-                                                 "src/frankentone/examples/sampled.clj")))
-                                   :name "How to use samples"
-                                   :tip "Open the samples example.")
-                           ])])))
+                   :items (let [expath "src/frankentone/examples/"]
+                            [(action :handler
+                                     (partial a-open-file
+                                              (str expath "getting-started.clj"))
+                                     :name "Getting started"
+                                     :tip "Open the tutorial.")
+                             (action :handler
+                                     (partial a-open-file
+                                              (str expath "instruments.clj"))
+                                     :name "Example instruments"
+                                     :tip "Open the example instruments.")
+                             (action :handler
+                                     (partial a-open-file
+                                              (str expath "sampled.clj"))
+                                     :name "How to use samples"
+                                     :tip "Open the samples example.")
+                             (action :handler
+                                     (partial a-open-file
+                                              (str expath "speech.clj"))
+                                     :name "Speech synthesis example")]))])))
 
 
 (defn run []
