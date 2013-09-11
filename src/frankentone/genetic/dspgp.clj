@@ -43,6 +43,8 @@
   ([ref-data individual]
      (error-fn ref-data [:rms :spf :mfcc :boz] individual))
   ([ref-data features individual]
+     (error-fn ref-data [:rms :spf :mfcc :boz] program->fn individual))
+  ([ref-data features program->fn individual]
        (let [value-function (program->fn individual)
              no-nan (atom true)
              prev-samp (atom 0.0)
