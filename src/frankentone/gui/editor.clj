@@ -9,7 +9,8 @@
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
             [frankentone.gui scope]
-            [frankentone instruments patterns])
+            [frankentone instruments patterns speech]
+            [frankentone.entropy entropy])
   (:import
    (java.io Writer)
    (javax.swing.text DefaultEditorKit)
@@ -235,7 +236,8 @@
         (with-out-str-and-value
           (try 
             (load-string
-             (str "(in-ns 'frankentone.live)" 
+             (str "(use 'frankentone.live)
+(in-ns 'frankentone.live)" 
                   to-eval))
             (catch Exception e e)))]
     (invoke-later (set-status "Result: " (last result))
@@ -253,7 +255,8 @@
         (with-out-str
           (try 
             (load-string 
-             (str "(in-ns 'frankentone.live)"
+             (str "(use 'frankentone.live)
+(in-ns 'frankentone.live)"
                   \( "doc " symbol \) ))
             (catch Exception e e)))]
     (if (= result "")
@@ -278,33 +281,32 @@
           (min (inc (.getEndOffset region)) (count (text editor))))))
 
 
-
 (defn a-eval-selection-or-line [e]
   (future
     (if-let [to-eval (.getSelectedText (get-active-editor-tab))]
-            (eval-string to-eval)
-            (let [line (.getLineOfOffset
-                        (get-active-editor-tab)
-                        (.getCaretPosition (get-active-editor-tab)))]
-              (eval-string (subs (text (get-active-editor-tab))
-                                 (.getLineStartOffset (get-active-editor-tab) line)
-                                 (.getLineEndOffset (get-active-editor-tab) line)
-                                 ))))))
+      (eval-string to-eval)
+      (let [line (.getLineOfOffset
+                  (get-active-editor-tab)
+                  (.getCaretPosition (get-active-editor-tab)))]
+        (eval-string (subs (text (get-active-editor-tab))
+                           (.getLineStartOffset (get-active-editor-tab) line)
+                           (.getLineEndOffset (get-active-editor-tab) line)
+                           ))))))
 
 
 (defn a-eval-region-or-line [e]
   (future
     (if-let [to-eval (get-region-boundaries
-                            (get-active-editor-tab)
-                            (.getCaretPosition (get-active-editor-tab)))]
-            (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
-            (let [line (.getLineOfOffset (get-active-editor-tab)
-                                         (.getCaretPosition
-                                          (get-active-editor-tab)))]
-              (eval-string (subs (text (get-active-editor-tab))
-                                 (.getLineStartOffset (get-active-editor-tab) line)
-                                 (.getLineEndOffset (get-active-editor-tab) line)
-                                 ))))))
+                      (get-active-editor-tab)
+                      (.getCaretPosition (get-active-editor-tab)))]
+      (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
+      (let [line (.getLineOfOffset (get-active-editor-tab)
+                                   (.getCaretPosition
+                                    (get-active-editor-tab)))]
+        (eval-string (subs (text (get-active-editor-tab))
+                           (.getLineStartOffset (get-active-editor-tab) line)
+                           (.getLineEndOffset (get-active-editor-tab) line)
+                           ))))))
 
 
 (defn get-token-at-caret
@@ -401,6 +403,8 @@
         a-stop (action :handler (fn [e]
                                   (overtone.at-at/stop-and-reset-pool!
                                    overtone.music.time/player-pool)
+                                  (doall (map  #(.clear (val %))
+                                               @frankentone.instruments/instruments))
                                   (dsp/silence!))
                        :name "Set DSP fn to silence and cancel events"
                        :key "menu PERIOD")
