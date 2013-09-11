@@ -13,11 +13,6 @@
   (atom {}))
 
 
-(def note-kernels
-  "Map of all registered note-kernels."
-  (atom {}))
-
-
 (deftype InstNote
     [scheduled-time
      note]
@@ -27,7 +22,7 @@
              (.scheduled-time ^InstNote obj))))
 
 
-(defprotocol IInstrument
+(defprotocol PInstrument
   "An Instrument"
   (clear [this])
   (clear-queue [this])
@@ -35,7 +30,9 @@
   (new-note [this start-time freq amp dur])
   (play [this time])
   (setFunction [this function])
-  (getFunction [this]))
+  (getFunction [this])
+  (setNoteKernel [this function])
+  (getNoteKernel [this]))
 
 
 (defn reduce-instruments ^double [time coll]
@@ -43,19 +40,41 @@
 
 
 (defn note-due? [note-starts time]
-    (some-> ^InstNote (.peek ^PriorityBlockingQueue note-starts)
+  (some-> ^InstNote (.peek ^PriorityBlockingQueue note-starts)
           .scheduled-time
           (<= time)))
 
 
-(deftype Instrument
+(defn kernel-good? [note-kernel]
+  (if-not (fn? note-kernel)
+    (do (println "Bad note kernel! Is not a function!")
+        false)                             
+    (let [test-output (try
+                        ((note-kernel 440.0 1.0 2.0)
+                         0.0)
+                        (catch Exception e
+                          (str "Caught exception: "
+                               (.getMessage e))))]
+      (if (has-bad-value? test-output)
+        (do
+          (if (string? test-output)
+            (println "Bad note-kernel! "
+                     test-output)
+            (println "Bad note-kernel! "
+                     "Function returns result of type "
+                     (type test-output)))
+          false)
+        true))))
+
+
+(deftype CInstrument
     [name
      ^PriorityBlockingQueue note-starts
      notes
-     id
-     ^:volatile-mutable function]
+     ^:volatile-mutable function
+     ^:volatile-mutable note-kernel]
 
-  IInstrument
+  PInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
@@ -75,9 +94,8 @@
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id))
   (new-note [this start-time freq amp dur]
-    (let [new-id (keyword (str name "_"
-                               (swap! id inc)))
-          kernel (((keyword name) @note-kernels)
+    (let [new-id (keyword (gensym (str name "_")))
+          kernel (note-kernel
                   freq amp dur)]
       (.put note-starts
             (InstNote. start-time
@@ -91,7 +109,11 @@
                                 0.0))))]))
       new-id))
   (setFunction [_ in-func] (set! function in-func))
-  (getFunction [_] function))
+  (getFunction [_] function)
+  (setNoteKernel [_ in-func]
+    (when (kernel-good? in-func)
+      (set! note-kernel in-func)))
+  (getNoteKernel [_] note-kernel))
 
 
 (defn play-note
@@ -106,28 +128,6 @@
     (println "no such instrument " instrument "!")))
 
 
-(defn kernel-good? [note-kernel]
-  (if-not (fn? note-kernel)
-    (do (println "Bad note kernel! Is not a function!")
-        false)                             
-    (let [test-output# (try
-                         ((note-kernel 440.0 1.0 2.0)
-                          0.0)
-                         (catch Exception e#
-                           (str "Caught exception: "
-                                (.getMessage e#))))]
-      (if (has-bad-value? test-output#)
-        (do
-          (if (string? test-output#)
-            (println "Bad note-kernel! "
-                     test-output#)
-            (println "Bad note-kernel! "
-                     "Function returns result of type "
-                     (type test-output#)))
-          false)
-        true))))
-
-
 (defmacro definst
   "Construct an instrument out of a note-kernel.
 
@@ -135,15 +135,16 @@
   duration as arguments and returns a function that takes relative
   time and produces sample values."
   ([name note-kernel]
-     `(when (kernel-good? ~note-kernel)
-        (swap! note-kernels assoc (keyword '~name) ~note-kernel)
-        (when-not (get @instruments (keyword '~name))
-          (let [instrument# (Instrument. '~name
+     `(if-let [inst# (get @instruments (keyword '~name))]
+        (do (.setNoteKernel inst# ~note-kernel)
+            (def ~name (.getFunction inst#)))
+        (when (kernel-good? ~note-kernel)
+          (let [instrument# (CInstrument. '~name
                                          (PriorityBlockingQueue.)
                                          (atom {})
-                                         (atom (long 0))
-                                         nil)
-                fn# (fn ^double [time#] (.play ^Instrument instrument# time#))]
+                                         nil
+                                         ~note-kernel)
+                fn# (fn ^double [time#] (.play ^CInstrument instrument# time#))]
             (.setFunction instrument# fn#)
             (def ~name fn#)
             (swap! instruments
