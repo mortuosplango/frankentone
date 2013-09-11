@@ -28,10 +28,12 @@
       (lerp start end time)
       end)))
 
-
 (defn line-c
   [start end length]
-  (tLine. 0.0 start end (/ (/ 1.0 length) *sample-rate*)))
+  (if (> length 0.0)
+    (tLine. 0.0 start end (* (/ 1.0 length) sample-dur))
+    (constantly end)))
+
 
 (deftype tAsr
     [^:unsynchronized-mutable ^double time
@@ -53,6 +55,9 @@
 (defn asr-c
   [attack-time sustain-time sustain-level release-time]
   (let [
+        attack-time (max 0.0 attack-time)
+        sustain-time (max 0.0 sustain-time)
+        release-time (max 0.0 release-time)
         a-line (line-c 0.0 sustain-level attack-time)
         r-line (line-c sustain-level 0.0 release-time)
         attack-time (long (* attack-time *sample-rate*))
@@ -240,7 +245,8 @@
 
   Returns a function with the following arguments: [amp freq]"
     [in-phase]
-    (tSinOsc. (double in-phase) sine-table table-size cycle)))
+    (tSinOsc. (mod (* table-size (double in-phase))
+                   table-size) sine-table table-size cycle)))
 
 
 (defn square-c
@@ -315,7 +321,7 @@
          (- (set! val 
                   (Math/pow
                    phase
-                   2))
+                   2.0))
             oldval)
          (if (= freq prevfreq)
            scalefac
@@ -413,7 +419,9 @@ Returns a function with the following arguments: [amp freq]"
 
   Returns a function with the following arguments: [input wet feedback]"
   [max_delay]
-  (let [delay (long (Math/ceil (* max_delay *sample-rate*)))]
+  (let [delay (long (Math/ceil (* (hardclip max_delay
+                                            sample-dur
+                                            60.0) *sample-rate*)))]
     (tDelay. (java.nio.DoubleBuffer/allocate delay) delay)))
 
 
