@@ -5,18 +5,20 @@
   (:require clojure.java.io))
 
 
-
+(doall (map (fn [name]
+              (eval (conj '((fn [x y z] (fn [x] 0.0)))
+                          (symbol name) 'definst)))
+            ['hh 'bd 'sn]))
 
 (defn pat [t]
   (play-pattern [
                  - - [hh - - -] - ||
-   ;;              (repeat 4 [- hh]) ||
-                 ;;                 40 - - - - ||
-                 - - hh ||
+                 ;;(repeat 4 [- hh]) ||
+                 ;;40 - - - - ||
                  [sn sn] - - ||
- ;;               - sn - sn ||
+                 ;;- sn - sn ||
                  bd - bd - ||
-;;                 (repeat 4 [bd - - bd])
+                 ;;(repeat 5 [bd -])
                  ] 2.0 0.5 :default (/ t 1000.0))
   (let [next (+ t 2000)]
     (apply-at next #'pat [next])))
@@ -26,16 +28,19 @@
 (defn pat [_])
 
 
-(reset-dsp! (let [prev (atom 0.0)]
+(reset-dsp! (let [prev (atom 0.0)
+                  lpf (lpf-c)]
               (fn [x chan] (if (zero? chan)
                             (reset! prev
-                                    (mul-tanh
-                                     5.0
-                                     (+ 
-                                      (sn x)
-                                      (bd x)
-                                      (hh x)
-                                      (default x))))
+                                    (lpf (mul-tanh
+                                          5.0
+                                          (+ 
+                                           (sn x)
+                                           (bd x)
+                                           (hh x)
+                                           (default x)))
+                                         14000.0
+                                         1.0))
                             @prev))))
 
 ;; (start-dsp)
@@ -52,13 +57,13 @@
             (fn ^Double [x]
               (swap! prev-samp #(val-func x %)))))
         len (/ (count sample) *sample-rate*)]
-    (swap! note-kernels
-           assoc name
-           (fn [freq amp dur]
-             (fn ^double [x]
-               (if (< x len)
-                 (* amp (instfn x))
-                 0.0)))))
+    (when-let [inst (get @instruments name)]
+      (.setNoteKernel inst
+                      (fn [freq amp dur]
+                        (fn ^double [x]
+                          (if (< x len)
+                            (* amp (instfn x))
+                            0.0))))))
   (Thread/sleep (* 5 4 1000)))
 
 
