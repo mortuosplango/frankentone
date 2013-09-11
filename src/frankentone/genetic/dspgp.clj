@@ -73,27 +73,31 @@
                               (get-fft-mags samples 1024))
                             ;; compare RMS
                             rms (if (some #{:rms} features)
-                                    (* 100.0 (reduce +
-                                                  (mapv #(Math/abs (- %1 ^double %2))
-                                                       (windowed-rms samples
-                                                                     1024 0.25)
-                                                       (:rms ref-data))))
-                                    0.0)
+                                  (* 100.0 (Math/sqrt
+                                            (reduce +
+                                                    (mapv #(Math/pow
+                                                            (- %1 ^double %2)
+                                                            2.0)
+                                                          (windowed-rms samples
+                                                                        1024 0.25)
+                                                          (:rms ref-data)))))
+                                  0.0)
                             spf ;; penalize noisyness
                             (if (some #{:spf} features)
-                            (* 100.0
-                               (reduce +
-                                       (mapv
-                                        (fn [candidate-frame
-                                            ref-spectral-flatness]
-                                          (Math/abs
-                                           ^double
-                                           (- (spectral-flatness
-                                               candidate-frame)
-                                              ref-spectral-flatness)))
-                                        candidate-fft
-                                        (:spectral-flatness ref-data))))
-                                    0.0)
+                              (* 100.0
+                                 (Math/sqrt
+                                  (reduce +
+                                          (mapv
+                                           (fn [candidate-frame
+                                               ref-spectral-flatness]
+                                             (Math/pow
+                                              (- (spectral-flatness
+                                                  candidate-frame)
+                                                 ref-spectral-flatness)
+                                              2.0))
+                                           candidate-fft
+                                           (:spectral-flatness ref-data)))))
+                              0.0)
 
                             boz
                             ;; Bozkurt: Parallel evolutionary optimization of digital
@@ -128,14 +132,16 @@
                                        (mapv
                                         (fn [^floats candidate-frame
                                             ^floats ref-frame]
-                                          (areduce candidate-frame
-                                                   idx
-                                                   ret
-                                                   0.0
-                                                   (Math/abs
-                                                    ^double
-                                                    (- (aget candidate-frame idx)
-                                                       (aget ref-frame idx))))) 
+                                          (Math/sqrt
+                                           (areduce candidate-frame
+                                                    idx
+                                                    ret
+                                                    0.0
+                                                    (Math/pow
+                                                     (- (aget candidate-frame idx)
+                                                        (aget ref-frame idx))
+                                                     2.0)
+                                                    ))) 
                                         (mfcc candidate-fft
                                               (:mfcc-coefs ref-data))
                                         (:mfcc ref-data))))
