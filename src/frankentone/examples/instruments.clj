@@ -83,6 +83,7 @@
                     hpf (hpf-c)
                     lpf (lpf-c)
                     osc (sin-osc-c 0.0)
+                    white (white-noise-c)
                     asr (asr-c 0.01 0.0 1.0 dur)]
                 (fn [_]
                   (let [env (asr)]
@@ -90,7 +91,7 @@
                      env
                      3.0
                      (osc 2.0 230)
-                     (* amp (hpf (lpf (white-noise) (+ 200.0
+                     (* amp (hpf (lpf (white) (+ 200.0
                                                        (* env 3500.0)) 1.5)
                                  30.0 1.0))))))))
 
