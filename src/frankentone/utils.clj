@@ -137,16 +137,17 @@
                                        ;; and does it produce a closure to work?
                                        (= (subs (str (first expr#))
                                                 (- (count (str (first expr#))) 2)) "-c"))
-                                (do (let [symb# (gensym (str (first expr#)))]
+                                (do (let [symb# (gensym (str (first expr#)))
+                                          num-args# (some-> (first expr#)
+                                                            resolve
+                                                            meta
+                                                            :arglists
+                                                            first
+                                                            count
+                                                            inc)]
                                       (swap! vars# conj symb#
-                                             (take (some-> (first expr#)
-                                                           resolve
-                                                           meta
-                                                           :arglists
-                                                           first
-                                                           count
-                                                           inc) expr#))
-                                      (conj (nnext expr#) symb#)))
+                                             (take num-args# expr#))
+                                      (conj (drop num-args# expr#) symb#)))
                                 expr#))
                             body)]
     `(let ~(deref vars#) (fn ~args
