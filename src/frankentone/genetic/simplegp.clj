@@ -89,58 +89,52 @@
     (count (flatten c))
     1))
 
+
 (defn inject
   "Returns a copy of individual i with new inserted randomly somewhere
   within it (replacing something else)."
-  [new i]
-  (if (seq? i)
-    (if (zero? (rand-int (count (flatten i))))
-      new
-      (case (dec (count i))
-        1 (list (first i) (inject new (nth i 1)))
-        2 (rand-nth-weighted
-           [[
-             (list (first i) (inject new (nth i 1)) (nth i 2))
-             (codesize (nth i 1))]
-            [
-             (list (first i) (nth i 1) (inject new (nth i 2)))
-             (codesize (nth i 2))]])
-        3 (rand-nth-weighted
-           [[
-             (list (first i) (inject new (nth i 1)) (nth i 2) (nth i 3))
-             (codesize (nth i 1))]
-            [
-             (list (first i) (nth i 1) (inject new (nth i 2)) (nth i 3))
-             (codesize (nth i 2))]
-            [
-             (list (first i) (nth i 1) (nth i 2) (inject new (nth i 3)))
-             (codesize (nth i 3))]])))
-    new))<
+  [new in]
+  (if (and (seq? in)
+           (-> in codesize rand-int zero? not))
+    (let [args (rest in)
+          arg-count (count args)
+          to-vary (rand-nth-weighted (partition
+                                      2
+                                      (interleave
+                                       (range arg-count)
+                                       (map codesize args))))]
+      (concat
+       (take (inc to-vary) in)
+       (list (inject new (nth args to-vary)))
+       (drop (inc to-vary) args)))
+    new))
+
 
 (defn vary
   "Returns a copy of individual i with a terminal varied or a function
   exchanged for another of the same arity.
 
   TODO: function/terminal variation should have the same possibility."
-  [i]
-  (if (seq? i)
-    (if (zero? (rand-int (count (flatten i))))
-      (conj (rest i)
-            (:fn (random-function-with-arity (dec (count i)))))
-      (case (dec (count i))
-        1 (list (first i) (vary (nth i 1)))
-        2 (rand-nth
-           [
-            (list (first i) (vary (nth i 1)) (nth i 2))
-            (list (first i) (nth i 1) (vary (nth i 2)))])
-        3 (rand-nth
-           [
-            (list (first i) (vary (nth i 1)) (nth i 2) (nth i 3))
-            (list (first i) (nth i 1) (vary (nth i 2)) (nth i 3))
-            (list (first i) (nth i 1) (nth i 2) (vary (nth i 3)))])))
-    (if (number? i)
-      (* i (rrand 0.5 1.5))
-      (random-terminal))))>
+  [in]
+  (if (seq? in)
+    (if (-> in codesize rand-int zero? not)
+    (let [args (rest in)
+          arg-count (count args)
+          to-vary (rand-nth-weighted (partition
+                                      2
+                                      (interleave
+                                       (range arg-count)
+                                       (map codesize args))))]
+      (concat
+       (take (inc to-vary) in)
+       (list (vary (nth args to-vary)))
+       (drop (inc to-vary) args)))
+      (conj (rest in)
+            (:fn (random-function-with-arity (dec (count in))))))
+    (if (number? in)
+      (* in (rrand 0.5 1.5))
+      (random-terminal))))
+
 
 (defn extract
   "Returns a random subexpression of individual i."
