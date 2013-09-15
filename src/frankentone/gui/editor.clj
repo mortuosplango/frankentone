@@ -56,7 +56,13 @@
                    ["control D" "control SEMICOLON"
                     DefaultEditorKit/deleteNextCharAction]
                    ["control K" "control Y"
-                    RTextAreaEditorKit/rtaDeleteRestOfLineAction])]
+                    RTextAreaEditorKit/rtaDeleteRestOfLineAction]
+                   ["menu MINUS" "menu alt L"
+                    RTextAreaEditorKit/rtaDecreaseFontSizeAction]
+                   ["menu PLUS" "menu alt N"
+                    RTextAreaEditorKit/rtaIncreaseFontSizeAction]
+                   ["shift TAB" "shift TAB"
+                    RSyntaxTextAreaEditorKit/rstaDecreaseIndentAction])]
     (let [input-map (.getInputMap editor)]
       (if neo
         (do (doall (map #(.remove input-map (keystroke/keystroke (first %)))
@@ -109,8 +115,6 @@
   (val (find  @open-files
               (.getToolTipTextAt editor
                                  (.getSelectedIndex editor)))))
-
-;;(add-editor-tab-to-editor (make-editor-tab @current-file))
 
 (def post-buffer
   (text :multi-line? true :font "MONOSPACED-PLAIN-10"
@@ -169,7 +173,6 @@
         (spit selected "")
         (add-editor-tab-to-editor
          (make-editor-tab selected))
-        ;;(text! (get-active-editor-tab) "")
         (set-status "Created a new file.")))))
 
 
@@ -236,8 +239,7 @@
         (with-out-str-and-value
           (try 
             (load-string
-             (str "(use 'frankentone.live)
-(in-ns 'frankentone.live)" 
+             (str "(use 'frankentone.live) (in-ns 'frankentone.live)" 
                   to-eval))
             (catch Exception e e)))]
     (invoke-later (set-status "Result: " (last result))
@@ -255,8 +257,7 @@
         (with-out-str
           (try 
             (load-string 
-             (str "(use 'frankentone.live)
-(in-ns 'frankentone.live)"
+             (str "(use 'frankentone.live) (in-ns 'frankentone.live)"
                   \( "doc " symbol \) ))
             (catch Exception e e)))]
     (if (= result "")
