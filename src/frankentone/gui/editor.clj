@@ -2,7 +2,7 @@
 ;; https://github.com/daveray/seesaw/blob/develop/test/seesaw/test/examples/text_editor.clj
 
 (ns frankentone.gui.editor
-  (:use [seesaw core chooser mig keymap]
+  (:use [seesaw core chooser mig keymap color]
         [clojure.java.io :only [file resource]])
   (:require overtone.music.time
             [seesaw.rsyntax :as rsyntax]
@@ -17,9 +17,11 @@
    (java.awt Container)
    (java.io File)
    (java.awt.im InputContext)
-   (org.fife.ui.rtextarea RTextScrollPane
+   (org.fife.ui.rtextarea ChangeableHighlightPainter
+                          RTextScrollPane
                           RTextAreaEditorKit)
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea
+                                RSyntaxTextAreaHighlighter
                                 RSyntaxTextAreaEditorKit
                                 RSyntaxTextAreaDefaultInputMap
                                 RSyntaxUtilities
@@ -282,32 +284,48 @@
           (min (inc (.getEndOffset region)) (count (text editor))))))
 
 
+(defn flash-region [^RSyntaxTextArea editor start end] 
+  (let [highlighter (.getHighlighter editor)
+        painter (ChangeableHighlightPainter. (color "#ffdd66" 128))
+        hl (.addHighlight highlighter
+                          start end
+                          painter)]
+    (Thread/sleep 128)
+    (.setPaint painter (color "#ffddbb" 128))
+    (Thread/sleep 128)
+    (.setPaint painter (color "#ffdddd" 128))
+    (.removeHighlight highlighter hl)))
+
+
+(defn eval-line [^RSyntaxTextArea editor]
+  (let [line (.getLineOfOffset editor
+                               (.getCaretPosition editor))
+        start (.getLineStartOffset editor line)
+        end (.getLineEndOffset editor line)]
+    (eval-string (subs (text editor) start end))
+    (flash-region editor start end)))
+
+
 (defn a-eval-selection-or-line [e]
   (future
-    (if-let [to-eval (.getSelectedText (get-active-editor-tab))]
-      (eval-string to-eval)
-      (let [line (.getLineOfOffset
-                  (get-active-editor-tab)
-                  (.getCaretPosition (get-active-editor-tab)))]
-        (eval-string (subs (text (get-active-editor-tab))
-                           (.getLineStartOffset (get-active-editor-tab) line)
-                           (.getLineEndOffset (get-active-editor-tab) line)
-                           ))))))
+    (let [editor (get-active-editor-tab)]
+     (if-let [to-eval (.getSelectedText editor)]
+       (do (eval-string to-eval)
+           (flash-region (.getSelectionStart editor)
+                         (.getSelectionEnd editor)
+                         (get-active-editor-tab)))
+       (eval-line editor)))))
 
 
 (defn a-eval-region-or-line [e]
   (future
-    (if-let [to-eval (get-region-boundaries
-                      (get-active-editor-tab)
-                      (.getCaretPosition (get-active-editor-tab)))]
-      (eval-string (apply subs (text (get-active-editor-tab)) to-eval))
-      (let [line (.getLineOfOffset (get-active-editor-tab)
-                                   (.getCaretPosition
-                                    (get-active-editor-tab)))]
-        (eval-string (subs (text (get-active-editor-tab))
-                           (.getLineStartOffset (get-active-editor-tab) line)
-                           (.getLineEndOffset (get-active-editor-tab) line)
-                           ))))))
+    (let [editor (get-active-editor-tab)]
+      (if-let [to-eval (get-region-boundaries
+                        editor
+                        (.getCaretPosition editor))]
+        (do (eval-string (apply subs (text editor) to-eval))
+            (flash-region editor (first to-eval) (second to-eval)))
+        (eval-line editor)))))
 
 
 (defn get-token-at-caret
@@ -328,7 +346,8 @@
 
 
 (defn a-open-source [e]
-  (let [to-look-up (get-token-at-caret (get-active-editor-tab) -1)]
+  (let [editor (get-active-editor-tab)
+        to-look-up (get-token-at-caret editor -1)]
     (when-not (or (not to-look-up)
                   (not (.type to-look-up))
                   (= (.type to-look-up) TokenTypes/NULL))
@@ -340,7 +359,7 @@
               (do (if (.exists sourcefile)
                     (open-file sourcefile)
                     (open-file alternative))
-                  (scroll! (get-active-editor-tab)
+                  (scroll! editor
                            :to [:line (max 0 (dec (:line (meta v))))]))
               (set-status "Couldn't open source file " sourcefile
                           " for " (str v) ".")))

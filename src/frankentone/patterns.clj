@@ -54,7 +54,7 @@
   The item count in the collection corresponds to the length of the
   individual objects. E. g. to play two basedrum sounds with 1/2 cycle
   length after each other: [:bd :bd]
-ö
+
   To separate multiple voices, you can use || or :|
 
   [bd - || hh hh hh]
