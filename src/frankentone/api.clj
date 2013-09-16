@@ -16,6 +16,7 @@
             frankentone.examples.instruments
 
             frankentone.entropy.entropy
+            frankentone.entropy.selfmod
             
             frankentone.genetic.analysis
             frankentone.genetic.dspgp
@@ -51,6 +52,7 @@
                 frankentone.examples.instruments
 
                 frankentone.entropy.entropy
+                frankentone.entropy.selfmod
                 
                 frankentone.genetic.analysis
                 frankentone.genetic.dspgp

@@ -124,7 +124,9 @@
 
 
 (def documentation-buffer
-  (text :multi-line? true :font "MONOSPACED-PLAIN-12"
+  (text :multi-line? true
+        :wrap-lines? true
+        :font "MONOSPACED-PLAIN-12"
         :text "Welcome to frankentone!"))
 
 
@@ -283,6 +285,11 @@
     (list (.getStartOffset region)
           (min (inc (.getEndOffset region)) (count (text editor))))))
 
+(defn get-line-boundaries  [^RSyntaxTextArea editor pos]
+  (let [line (.getLineOfOffset editor pos)
+        start (.getLineStartOffset editor line)
+        end (.getLineEndOffset editor line)]
+    (list start end)))
 
 (defn flash-region [^RSyntaxTextArea editor start end] 
   (let [highlighter (.getHighlighter editor)
@@ -298,10 +305,9 @@
 
 
 (defn eval-line [^RSyntaxTextArea editor]
-  (let [line (.getLineOfOffset editor
-                               (.getCaretPosition editor))
-        start (.getLineStartOffset editor line)
-        end (.getLineEndOffset editor line)]
+  (let [[start end] (get-line-boundaries
+                     editor
+                     (.getCaretPosition editor))]
     (eval-string (subs (text editor) start end))
     (flash-region editor start end)))
 
@@ -508,7 +514,7 @@
 
 (defn run []
   (-> (frame
-       :title "Frankentone Editor"
+       :title "Franken[~]tone Editor"
        :content main-panel
        :minimum-size [640 :by 480]
        :menubar menus) pack! show!))
