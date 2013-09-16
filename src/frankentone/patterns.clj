@@ -59,8 +59,12 @@
 
   [bd - || hh hh hh]
 
-  If the object is not an instrument function, a keyword, || or a
-  number, it will be treated as a break."
+  Sets will also be played in parallel:
+
+  #{[bd - ] [hh hh hh]}
+
+  If an object is not a a collection, instrument function, keyword,
+  :|, || or number, it will be treated as a break."
   ([coll]
      (play-pattern coll 2.0))
   ([coll length]
@@ -72,5 +76,9 @@
   ([coll length offset instrument now]
      (doall (mapv #(do-play-pattern % length offset instrument now)
                   (remove #(= (first %) :|)
-                          (partition-by #(= % :|) coll))))))
+                          (partition-by #(= % :|)
+                                        (if (set? coll)
+                                          (interleave coll (repeat ||))
+                                          coll)))))))
+
 

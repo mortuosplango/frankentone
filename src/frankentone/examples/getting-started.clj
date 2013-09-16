@@ -82,6 +82,21 @@
 (play-pattern [60 - 62 64 68 :|
                36 38] 2.0 0.5)
 
+;; use a set to play a chord
+(play-pattern #{60 61 62 64})
+
+;; play two chord with the overtone chord function
+(play-pattern [
+	(set (chord :G4 :major))
+	(set (chord :C4 :minor))])
+
+;; play two chord in parallel with a bass note
+(play-pattern #{
+	(set (chord :G4 :major))
+	(set (chord :C4 :minor))
+	30
+	})
+
 ;; want to play a different instrument?
 ;; first write your own instrument
 (definst my-inst 
