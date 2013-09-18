@@ -4,7 +4,7 @@
 (ns frankentone.gui.editor
   (:use [seesaw core chooser mig keymap color]
         [clojure.java.io :only [file resource]])
-  (:require overtone.music.time
+  (:require [overtone.music time rhythm pitch]
             [seesaw.rsyntax :as rsyntax]
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
@@ -18,9 +18,12 @@
    (java.io File)
    (java.awt.im InputContext)
    (org.fife.ui.rtextarea ChangeableHighlightPainter
+                          RTextAreaEditorKit$DecreaseFontSizeAction
+                          RTextAreaEditorKit$IncreaseFontSizeAction
                           RTextScrollPane
                           RTextAreaEditorKit)
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea
+                                RSyntaxTextAreaEditorKit$ToggleCommentAction
                                 RSyntaxTextAreaHighlighter
                                 RSyntaxTextAreaEditorKit
                                 RSyntaxTextAreaDefaultInputMap
@@ -31,9 +34,10 @@
 
 (native!)
 
+
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
-  (let [neo (= (.hashCode (.getLocale (InputContext/getInstance)))
-               1921505307)
+  (let [neo (and (= (.getCountry (.getLocale (InputContext/getInstance))) "US")
+                 (= (.getVariant (.getLocale (InputContext/getInstance))) "UserDefined_ éîuˇ"))
         shortcuts (list
                    ["menu D" "menu SEMICOLON" "none"]
                    ["menu D" "menu D" "none"]
@@ -59,10 +63,6 @@
                     DefaultEditorKit/deleteNextCharAction]
                    ["control K" "control Y"
                     RTextAreaEditorKit/rtaDeleteRestOfLineAction]
-                   ["menu MINUS" "menu alt L"
-                    RTextAreaEditorKit/rtaDecreaseFontSizeAction]
-                   ["menu PLUS" "menu alt N"
-                    RTextAreaEditorKit/rtaIncreaseFontSizeAction]
                    ["shift TAB" "shift TAB"
                     RSyntaxTextAreaEditorKit/rstaDecreaseIndentAction])]
     (let [input-map (.getInputMap editor)]
@@ -236,6 +236,20 @@
 (defn a-copy  [e] (.copy (get-active-editor-tab)))
 (defn a-cut   [e] (.cut (get-active-editor-tab)))
 (defn a-paste [e] (.paste (get-active-editor-tab)))
+(defn a-comment [e]
+  (.actionPerformedImpl
+   (RSyntaxTextAreaEditorKit$ToggleCommentAction.) e
+   (get-active-editor-tab)))
+
+(defn a-inc-font-size [e]
+  (.actionPerformedImpl
+   (RTextAreaEditorKit$IncreaseFontSizeAction.) e
+   (get-active-editor-tab)))
+(defn a-dec-font-size [e]
+  (.actionPerformedImpl
+   (RTextAreaEditorKit$DecreaseFontSizeAction.) e
+   (get-active-editor-tab)))
+
 
 
 (defn eval-string [to-eval]
@@ -333,6 +347,7 @@
             (flash-region editor (first to-eval) (second to-eval)))
         (eval-line editor)))))
 
+(.getParserCount (get-active-editor-tab))
 
 (defn get-token-at-caret
   ([^RSyntaxTextArea editor]
@@ -412,6 +427,15 @@
         a-cut (action :handler a-cut :name "Cut"
                       :tip "Cut text to the clipboard."
                       :key "menu X")
+        a-comment (action :handler a-comment :name "Toggle comment"
+                      :tip "Comment or uncomment the marked lines. "
+                      :key "menu SLASH")
+        a-inc-font-size (action :handler a-inc-font-size :name "Increase font size"
+                      :tip ""
+                      :key "menu PLUS")
+        a-dec-font-size (action :handler a-dec-font-size :name "Decrease font size"
+                      :tip ""
+                      :key "menu MINUS")
         a-eval-region-or-line (action
                                :handler a-eval-region-or-line
                                :name "Evaluate region or line"
@@ -450,10 +474,15 @@
     
     (menubar
      :items [(menu :text "File" :items [a-new a-open a-save a-save-as
+                                        (separator)
                                         a-close-tab
                                         (separator)
                                         a-exit])
-             (menu :text "Edit" :items [a-copy a-cut a-paste])
+             (menu :text "Edit" :items [a-copy a-cut a-paste
+                                        (separator)
+                                        a-comment])
+             (menu :text "View" :items [a-inc-font-size
+                                        a-dec-font-size])
              (menu :text "Code" :items [a-eval-selection-or-line
                                         a-eval-region-or-line
                                         (separator)
@@ -484,8 +513,10 @@
                            ['frankentone.entropy.entropy "Entropy"]
                            ['frankentone.ugens "UGens"]
                            ['frankentone.utils "Utils"]
+                           ['overtone.music.pitch "Overtone->Pitch"]
                            ['overtone.music.time "Overtone->Time"]
-                           ['overtone.music.pitch "Overtone->Pitch"]])
+                           ['overtone.music.rhythm "Overtone->Rhythm"]
+                           ])
                          (separator)
                          a-docstring))
              
