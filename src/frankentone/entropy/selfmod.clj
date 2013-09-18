@@ -4,6 +4,7 @@
   (:import
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea)))
 
+
 (defn swap-val [editor start end pos value]
   (let [code-str (atom (subs
                         (seesaw.core/text editor)
@@ -39,19 +40,15 @@
                             editor target))]
          (let [old-caret (.getCaretPosition editor)
                [start end] bounds
-               to-replace (swap-val editor start end pos value)
-               new-text  (str (subs old-text 0 start)
-                              to-replace
-                              (subs old-text end))]
-           (seesaw.core/text!
-            editor
-            new-text)
-           (if (> old-caret end)
-             (.setCaretPosition editor (min (count new-text)
+               to-replace (swap-val editor start end pos value)]
+           (.replaceRange editor
+                          to-replace
+                          start end)
+           (.setCaretPosition editor (min (count (seesaw.core/text editor))
+                                          (if (> old-caret end)
                                             (+ (- old-caret
                                                   (- end start))
-                                               (count to-replace))))
-             (.setCaretPosition editor (min (count new-text)
+                                               (count to-replace))
                                             old-caret)))))))))
 
 
