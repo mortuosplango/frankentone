@@ -4,13 +4,11 @@
    [frankentone.entropy entropy]
    [frankentone.gui editor]))
 
-(defnt-cb hello [in] 
-  (+ ?12.7 in)
-  (partial selfmod-cb (get-active-editor-tab)))
+(defnt-sm hello [in] 
+  (+ ?12.7 in))
 
-(defntropy-cb hi [in] 
-  (str (+ 12.7 in) "hilldihodihi")
-  (make-selfmod))
+(defntropy-sm hi [in] 
+  (str (+ 12.7 in) "What's up?"))
 
 (hi 12)
 
@@ -43,10 +41,9 @@
 
 (play-note (+ 0.1 (nows)) :speak "test" 0.2 2.0)
 
-(defntropy-cb make-txt77 []
-[	"hello, how are you?" ||
-]
-  (make-selfmod))
+(defntropy-sm make-txt77 []
+	["How are you?"
+	])
 
 (defn pat1277 [t]
   (play-pattern (make-txt77)
@@ -65,7 +62,7 @@
 (pat1277 (+ 1000 (now)))
 
 (defn pat1277
-[_])
+	[_])
 
 
 (stop-dsp)
