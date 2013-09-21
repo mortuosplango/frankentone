@@ -131,12 +131,17 @@
                               (if (and (coll? expr#)
                                        (seq expr#)
                                        ;; is it in the ugen namespace?
-                                       (some-> (first expr#) 
-                                               resolve meta :ns
-                                               (= (find-ns 'frankentone.ugens)))
-                                       ;; and does it produce a closure to work?
+                                       ;; (doesn't work in editor so
+                                       ;; disabled for now)
+                                       ;; (some-> (first expr#) 
+                                       ;;         resolve meta :ns
+                                       ;;         (= (find-ns 'frankentone.ugens)))
+                                       ;; and does it produce a
+                                       ;; closure to work?
+                                       (> (count (str (first expr#))) 2)
                                        (= (subs (str (first expr#))
-                                                (- (count (str (first expr#))) 2)) "-c"))
+                                                (- (count (str (first expr#))) 2))
+                                          "-c"))
                                 (do (let [symb# (gensym (str (first expr#)))
                                           num-args# (some-> (first expr#)
                                                             resolve
@@ -159,4 +164,17 @@
 
 (defn mel->hz [mel]
   (* 700 (- (Math/pow Math/E (/ mel 1127.0)) 1.0)))
+
+(defn opo->hz [opo]
+  (overtone.music.pitch/midi->hz (* 12 opo)))
+
+(defn hz->opo [frequency]
+  (/ (overtone.music.pitch/hz->midi frequency)
+     12.0))
+
+(defn opo->midi [opo]
+  (* 12 opo))
+
+(defn midi->opo [midi]
+  (/ midi 12.0))
 
