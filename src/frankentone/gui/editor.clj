@@ -462,8 +462,8 @@
                           lvl)))))]
         (when closing-brak
           (list
-           (first opening-brak)
-           (first closing-brak)
+           (max 0 (dec (first opening-brak)))
+           (min len-text (inc (first closing-brak)))
            (last closing-brak)))))))
 
 
