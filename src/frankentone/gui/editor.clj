@@ -9,7 +9,7 @@
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
             [frankentone.gui scope]
-            [frankentone instruments patterns speech]
+            [frankentone instruments patterns speech utils]
             [frankentone.entropy entropy])
   (:import
    (java.io Writer)
@@ -28,6 +28,7 @@
                                 RSyntaxTextAreaEditorKit
                                 RSyntaxTextAreaDefaultInputMap
                                 RSyntaxUtilities
+                                RSyntaxDocument
                                 TokenTypes)
    (org.fife.ui.rsyntaxtextarea.folding LispFoldParser)))
 
@@ -87,12 +88,33 @@
 
 (def current-file-label (label :text "" :font "SANSSERIF-PLAIN-8"))
 
+(declare get-context)
+
 (defn make-editor-tab [^File file]
   (let [editor-tab (rsyntax/text-area
                     :text file
                     :syntax :clojure
                     :tab-size 2)]
     (pimp-editor-keymap editor-tab)
+    (listen editor-tab
+            #{:caret-update}
+            (let [
+                  highlighter (.getHighlighter editor-tab)
+                  painter (ChangeableHighlightPainter. (color "#aaddff" 128))
+                  red-painter (ChangeableHighlightPainter. (color "#ffaaaa" 128))
+                  hl (atom nil)]
+              (fn [e]
+                (invoke-later
+                 (when @hl
+                   (.removeHighlight highlighter @hl))
+                 (when-let [new-hl (get-context editor-tab)]
+                   (reset! hl
+                           (.addHighlight highlighter
+                                          (inc (first new-hl))
+                                          (second new-hl)
+                                          (if (last new-hl)
+                                            painter
+                                            red-painter))))))))
     {:title (.getName file)
      :tip (.getPath file)
      :content  (RTextScrollPane. editor-tab)}))
@@ -347,7 +369,6 @@
             (flash-region editor (first to-eval) (second to-eval)))
         (eval-line editor)))))
 
-(.getParserCount (get-active-editor-tab))
 
 (defn get-token-at-caret
   ([^RSyntaxTextArea editor]
@@ -366,12 +387,90 @@
        token)))
 
 
+(defn valid-token? [tok]
+  (not (or (not tok)
+           (not (.type tok))
+           (= (.type tok) TokenTypes/NULL))))
+
+
+(defn get-context 
+  "Returns a list of the offsets of the bracket pair the caret is in
+  and true if the brackets match. Returns nil if no matching brackets
+  were found.
+
+  Limitations: Doesn't ignore comments."
+  [editor]
+  (let [
+        position (.getCaretPosition editor)
+        document (.getDocument editor)
+        len-text (count (text editor))
+        closing-brak? #(or (= % \))
+                           (= % \})
+                           (= % \]))
+        opening-brak? #(or (= % \()
+                           (= % \[)
+                           (= % \{))
+        get-opposite #(case %
+                           \( \)
+                           \{ \}
+                           \[ \]
+                           \) \(
+                           \} \{
+                           \] \[)
+
+        opening-brak
+        (loop [pos (dec position)
+               lvl (list)]
+          (when
+              (>= pos 0)
+            (let [to-test (.charAt document pos)]
+              (cond
+               (and (seq lvl)
+                    (= (first lvl) to-test))
+               (recur (dec pos)
+                      (rest lvl))
+               (closing-brak? to-test)
+               (recur (dec pos)
+                      (conj lvl (get-opposite to-test)))
+               (and (opening-brak? to-test)
+                    (empty? lvl))
+               (list pos to-test)
+               :default
+               (recur (dec pos)
+                      lvl)))))]
+    (when opening-brak 
+      (let [closing (get-opposite (second opening-brak))
+            closing-brak
+            (loop [pos position
+                   lvl (list)]
+              (when
+                  (< pos len-text)
+                (let [to-test (.charAt document pos)]
+                  (cond
+                   (and (seq lvl)
+                        (= (first lvl) to-test))
+                   (recur (inc pos)
+                          (rest lvl))
+                   (opening-brak? to-test)
+                   (recur (inc pos)
+                          (conj lvl (get-opposite to-test)))
+                   (and (closing-brak? to-test)
+                        (empty? lvl))
+                   (list pos to-test (= closing to-test))
+                   :default
+                   (recur (inc pos)
+                          lvl)))))]
+        (when closing-brak
+          (list
+           (first opening-brak)
+           (first closing-brak)
+           (last closing-brak)))))))
+
+
 (defn a-open-source [e]
   (let [editor (get-active-editor-tab)
         to-look-up (get-token-at-caret editor -1)]
-    (when-not (or (not to-look-up)
-                  (not (.type to-look-up))
-                  (= (.type to-look-up) TokenTypes/NULL))
+    (when (valid-token? to-look-up)
       (if-let [v (ns-resolve 'frankentone.live (symbol (.getLexeme to-look-up)))]
         (if-let [filepath (:file (meta v))]
           (let [sourcefile (file filepath)
