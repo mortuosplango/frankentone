@@ -33,10 +33,10 @@
          old-text (seesaw.core/text editor)]
      (when (not= target -1)
        (when-let [bounds (if-let [region
-                                  (frankentone.gui.editor/get-region-boundaries
+                                  (frankentone.gui.editor-utils/get-region-boundaries
                                    editor target)]
                            region
-                           (frankentone.gui.editor/get-line-boundaries
+                           (frankentone.gui.editor-utils/get-line-boundaries
                             editor target))]
          (let [old-caret (.getCaretPosition editor)
                [start end] bounds
