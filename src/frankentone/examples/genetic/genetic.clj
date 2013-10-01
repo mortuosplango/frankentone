@@ -42,12 +42,12 @@
              :changed true
              :samples 
              (mapv (let [prev-samp (atom 0.0)]
-                     (fn ^Double [[x y]]
+                     (fn ^Double [x]
                        (hardclip
                         (swap!
                          prev-samp
                          #(filter-bad-value (value-function x %))))))
-                   @target-data)}))
+                   (:x @reference))}))
   (program->dsp! best true))
 
 

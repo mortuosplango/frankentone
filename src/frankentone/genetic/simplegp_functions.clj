@@ -1,4 +1,4 @@
-(ns frankentone.genetic.simplegpfunctions
+(ns frankentone.genetic.simplegp-functions
   (:use [frankentone utils]
         [frankentone.genetic utils]))
 

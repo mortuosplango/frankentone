@@ -6,7 +6,7 @@
          ugens]
         [frankentone.genetic 
          analysis
-         simplegpfunctions
+         simplegp-functions
          utils])
   (:require [incanter core charts stats])
   (:import [edu.emory.mathcs.jtransforms.fft FloatFFT_1D]))
