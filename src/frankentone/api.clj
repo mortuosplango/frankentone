@@ -21,7 +21,7 @@
             frankentone.genetic.analysis
             frankentone.genetic.dspgp
             frankentone.genetic.simplegp
-            frankentone.genetic.simplegpfunctions
+            frankentone.genetic.simplegp-functions
             frankentone.genetic.utils
             frankentone.genetic.dspgp
 
@@ -57,7 +57,7 @@
                 frankentone.genetic.analysis
                 frankentone.genetic.dspgp
                 frankentone.genetic.simplegp
-                frankentone.genetic.simplegpfunctions
+                frankentone.genetic.simplegp-functions
                 frankentone.genetic.utils
                 frankentone.genetic.dspgp
 
