@@ -82,6 +82,7 @@
                     :syntax :clojure
                     :tab-size 2)]
     (pimp-editor-keymap editor-tab)
+    (.setCodeFoldingEnabled editor-tab true)
     (listen editor-tab
             #{:caret-update}
             (let [
@@ -115,19 +116,19 @@
                  v#)))))
 
 
+
 (defn get-region-boundaries [^RSyntaxTextArea editor pos]
-  (when-let [region (first
-                     (let [folds (.getFolds (LispFoldParser.) editor)]
-                       (doall (filter
-                               #(do
-                                  (.containsOrStartsOnLine %1
-                                                           (.getLineOfOffset
-                                                            editor
-                                                            pos)))
-                               folds))))]
+  (.reparse (.getFoldManager editor))
+  (when-let [region (.getDeepestFoldContaining
+                     (.getFoldManager editor)
+                     pos)]
     ;;(println region)
-    (list (.getStartOffset region)
-          (min (inc (.getEndOffset region)) (count (text editor))))))
+    (let [region (loop [fold region]
+                   (if (.getParent fold)
+                     (recur (.getParent fold))
+                     fold))]
+      (list (.getStartOffset region)
+            (min (inc (.getEndOffset region)) (count (text editor)))))))
 
 
 (defn get-line-boundaries  [^RSyntaxTextArea editor pos]
