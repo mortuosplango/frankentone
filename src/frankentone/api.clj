@@ -19,7 +19,6 @@
             frankentone.entropy.selfmod
             
             frankentone.genetic.analysis
-            frankentone.genetic.dspgp
             frankentone.genetic.simplegp
             frankentone.genetic.simplegp-functions
             frankentone.genetic.utils
@@ -55,7 +54,6 @@
                 frankentone.entropy.selfmod
                 
                 frankentone.genetic.analysis
-                frankentone.genetic.dspgp
                 frankentone.genetic.simplegp
                 frankentone.genetic.simplegp-functions
                 frankentone.genetic.utils
