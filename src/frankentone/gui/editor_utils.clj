@@ -185,7 +185,6 @@
   Limitations: Doesn't ignore comments."
   [editor]
   (let [
-        position (.getCaretPosition editor)
         document (.getDocument editor)
         len-text (count (text editor))
         closing-brak? #(or (= % \))
@@ -201,9 +200,13 @@
                            \) \(
                            \} \{
                            \] \[)
+        position (let [pos (max 0 (dec (.getCaretPosition editor)))]
+                   (if (closing-brak? (.charAt document pos))
+                     pos
+                     (inc pos))) ;(max 0 (dec))
 
         opening-brak
-        (loop [pos (dec position)
+        (loop [pos (max 0 (dec position))
                lvl (list)]
           (when
               (>= pos 0)
@@ -222,6 +225,7 @@
                :default
                (recur (dec pos)
                       lvl)))))]
+    
     (when opening-brak 
       (let [closing (get-opposite (second opening-brak))
             closing-brak
@@ -244,6 +248,7 @@
                    :default
                    (recur (inc pos)
                           lvl)))))]
+        
         (when closing-brak
           (list
            (max 0 (dec (first opening-brak)))
