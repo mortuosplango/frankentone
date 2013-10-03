@@ -18,7 +18,7 @@
         steps2 (int-array (mapv #(mod (inc (* step %))
                                       (* 2 *default-buffer-size*))
                                 (range w)))
-        y-scale (/ h4 Short/MAX_VALUE)]
+        y-scale (* -1 (/ h4 Short/MAX_VALUE))]
     
     (fn [_
         ^java.awt.Graphics2D g]
