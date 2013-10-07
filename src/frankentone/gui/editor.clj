@@ -37,61 +37,80 @@
 (native!)
 
 (def open-files
+  "Holds all open files in a dictionary.
+
+  The key is the path of the file, the value the instance of the file."
   (atom {
          (.getPath (file (System/getProperty "user.home") ".ftscratch"))
          (file (System/getProperty "user.home") ".ftscratch")}))
 
+;; open standard .ftscratch file
 (when-not (.exists ^File (val (first @open-files)))
   (spit (val (first @open-files)) ""))
 
-(def current-file-label (label :text "" :font "SANSSERIF-PLAIN-8"))
 
+(def editor-tabs
+  "A tabbed panel which holds all open documents
 
-(def editor
+  TODO needs a better name"
   (tabbed-panel
    :id :tabs
    :placement :top
    :tabs [ (make-editor-tab (val (first @open-files)))]))
 
-(defn get-active-editor-tab ^RSyntaxTextArea []
-  (.getComponent (.getComponent (:content (selection editor)) 0) 0))
 
-(defn add-editor-tab-to-editor [editor-tab]
-  (doto editor
+(defn get-active-editor-tab
+  "Returns the text area of the currently active editor tab."
+   ^RSyntaxTextArea []
+  (.getComponent (.getComponent (:content (selection editor-tabs)) 0) 0))
+
+
+(defn add-editor-tab
+  "Adds another editor tab to the editor tabs.
+
+  The tool tip is set to the file name."
+  [editor-tab]
+  (doto editor-tabs
     (.addTab (:title editor-tab)
              (make-widget (:content editor-tab)))
-    (.setToolTipTextAt (dec (.getTabCount editor)) (:tip editor-tab))
-    (.setSelectedIndex (dec (.getTabCount editor)))))
+    (.setToolTipTextAt (dec (.getTabCount editor-tabs)) (:tip editor-tab))
+    (.setSelectedIndex (dec (.getTabCount editor-tabs)))))
 
-(defn get-current-file ^File []
+
+(defn get-current-file 
+  "Returns the file associated with the currently active editor tab."
+  ^File []
   (val (find  @open-files
-              (.getToolTipTextAt editor
-                                 (.getSelectedIndex editor)))))
+              (.getToolTipTextAt editor-tabs
+                                 (.getSelectedIndex editor-tabs)))))
+
 
 (def post-buffer
+  "Text field showing the output of evaluations."
   (text :multi-line? true :font "MONOSPACED-PLAIN-10"
         :text ";;;;; Post buffer ;;;;;; \n \n \n"))
 
 
 (def documentation-buffer
+  "Text field for showing documentation."
   (text :multi-line? true
         :wrap-lines? true
         :font "MONOSPACED-PLAIN-12"
         :text "Welcome to frankentone!"))
 
 
-(def split-view (left-right-split editor
-                                  (top-bottom-split
-                                   (scrollable post-buffer)
-                                   (scrollable documentation-buffer)
-                                   :divider-location 0.5)
-                                  :divider-location 3/5))
+(def split-view
+  (left-right-split
+   editor-tabs
+   (top-bottom-split
+    (scrollable post-buffer)
+    (scrollable documentation-buffer)
+    :divider-location 0.5)
+   :divider-location 3/5))
 
 
 (def status-label (label :text ""))
-
-
-(defn set-status [& strings] (text! status-label (apply str strings)))
+(defn status! [& strings] (text! status-label (apply str strings)))
 
 
 (def main-panel
@@ -100,14 +119,71 @@
    :items [
            [split-view "grow"]
            [status-label "dock south"]
-           [(separator) "dock south"]
-           [current-file-label "dock south"]]))
+           [(separator) "dock south"]]))
 
 
-(defn select-file [type] (choose-file main-panel
-                                      :type type
-                                      :dir (.getParent (get-current-file))))
+(defn select-file [type]
+  (choose-file main-panel
+               :type type
+               :dir (.getParent (get-current-file))))
 
+
+(defn open-file [^File file]
+  (if (get @open-files (.getPath file))
+    (do (loop [i 0]
+          (if (= (.getToolTipTextAt editor-tabs i) (.getPath file))
+            (.setSelectedIndex editor-tabs i)
+            (when (< (inc i) (.getTabCount editor-tabs))
+              (recur (inc i)))))
+        (status! (.getName file) " already opened. Tab is now selected."))
+    (do (swap! open-files assoc (.getPath file) file)
+        (add-editor-tab
+         (make-editor-tab file))
+        (status! "Opened " file "."))))
+
+
+(defn eval-string [to-eval]
+  (let [result
+        (with-out-str-and-value
+          (try 
+            (load-string
+             (str "(use 'frankentone.live) (in-ns 'frankentone.live)" 
+                  to-eval))
+            (catch Exception e e)))]
+    (invoke-later (status! "Result: " (last result))
+                  (.append post-buffer
+                           (str
+                            (when (not= (first result) "")
+                              (str (first result) "\n")) 
+                            (last result) "\n"))
+                  (scroll! post-buffer :to :bottom))
+    result))
+
+
+(defn eval-line [^RSyntaxTextArea editor]
+  (let [[start end] (get-line-boundaries
+                     editor
+                     (.getCaretPosition editor))]
+    (eval-string (subs (text editor) start end))
+    (flash-region editor start end)))
+
+
+(defn show-documentation [symbol]
+  (let [result
+        (with-out-str
+          (try 
+            (load-string 
+             (str "(use 'frankentone.live) (in-ns 'frankentone.live)"
+                  \( "doc " symbol \) ))
+            (catch Exception e e)))]
+    (if (= result "")
+      (text! documentation-buffer (str
+                                   "No documentation found for "
+                                   symbol "."))
+      (text! documentation-buffer result))))
+
+
+;;; all functions prefixed "a-" are actions
 
 (defn a-new [e]
   (let [selected ^File (select-file :save)]
@@ -116,23 +192,9 @@
       (do
         (swap! open-files assoc (.getPath selected) selected)
         (spit selected "")
-        (add-editor-tab-to-editor
+        (add-editor-tab
          (make-editor-tab selected))
-        (set-status "Created a new file.")))))
-
-
-(defn open-file [^File file]
-  (if (get @open-files (.getPath file))
-    (do (loop [i 0]
-          (if (= (.getToolTipTextAt editor i) (.getPath file))
-            (.setSelectedIndex editor i)
-            (when (< (inc i) (.getTabCount editor))
-              (recur (inc i)))))
-        (set-status (.getName file) " already opened. Tab is now selected."))
-    (do (swap! open-files assoc (.getPath file) file)
-        (add-editor-tab-to-editor
-         (make-editor-tab file))
-        (set-status "Opened " file "."))))
+        (status! "Created a new file.")))))
 
 
 (defn a-open [e]
@@ -142,11 +204,11 @@
 
 (defn a-save [e]
   (spit (get-current-file) (text (get-active-editor-tab)))
-  (set-status "Wrote " (get-current-file) "."))
+  (status! "Wrote " (get-current-file) "."))
 
 
 (defn a-close-tab [e]
-  (if (> (.getTabCount editor) 1)
+  (if (> (.getTabCount editor-tabs) 1)
     (invoke-now
      (let [result
            (-> (dialog :content "Save file before closing?"
@@ -158,7 +220,7 @@
          (a-save nil))
        (when result
          (swap! open-files dissoc (.getPath (get-current-file)))
-         (.remove editor (.getSelectedIndex editor)))))
+         (.remove editor-tabs (.getSelectedIndex editor-tabs)))))
     (invoke-now
      (alert "Can't close last tab."))))
 
@@ -168,9 +230,9 @@
     (swap! open-files dissoc (.getPath (get-current-file)))
     (swap! open-files assoc (.getPath selected) selected)
     (spit selected (text (get-active-editor-tab)))
-    (.setTitleAt editor (.getSelectedIndex editor) (.getName selected))
-    (.setToolTipTextAt editor (.getSelectedIndex editor) (.getPath selected))
-    (set-status "Wrote " selected ".")))
+    (.setTitleAt editor-tabs (.getSelectedIndex editor-tabs) (.getName selected))
+    (.setToolTipTextAt editor-tabs (.getSelectedIndex editor-tabs) (.getPath selected))
+    (status! "Wrote " selected ".")))
 
 
 (defn a-exit  [e] (dispose! e))
@@ -190,48 +252,6 @@
   (.actionPerformedImpl
    (RTextAreaEditorKit$DecreaseFontSizeAction.) e
    (get-active-editor-tab)))
-
-
-
-(defn eval-string [to-eval]
-  (let [result
-        (with-out-str-and-value
-          (try 
-            (load-string
-             (str "(use 'frankentone.live) (in-ns 'frankentone.live)" 
-                  to-eval))
-            (catch Exception e e)))]
-    (invoke-later (set-status "Result: " (last result))
-                  (.append post-buffer
-                           (str
-                            (when (not= (first result) "")
-                              (str (first result) "\n")) 
-                            (last result) "\n"))
-                  (scroll! post-buffer :to :bottom))
-    result))
-
-
-(defn show-documentation [symbol]
-  (let [result
-        (with-out-str
-          (try 
-            (load-string 
-             (str "(use 'frankentone.live) (in-ns 'frankentone.live)"
-                  \( "doc " symbol \) ))
-            (catch Exception e e)))]
-    (if (= result "")
-      (text! documentation-buffer (str
-                                   "No documentation found for "
-                                   symbol "."))
-      (text! documentation-buffer result))))
-
-
-(defn eval-line [^RSyntaxTextArea editor]
-  (let [[start end] (get-line-boundaries
-                     editor
-                     (.getCaretPosition editor))]
-    (eval-string (subs (text editor) start end))
-    (flash-region editor start end)))
 
 
 (defn a-eval-selection-or-line [e]
@@ -256,6 +276,21 @@
         (eval-line editor)))))
 
 
+(defn a-start-dsp [e] (eval-string "(start-dsp)"))
+(defn a-stop-dsp [e] (eval-string "(stop-dsp)"))
+
+
+(defn a-stop [e] 
+  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool)
+  (doall (map  #(.clear (val %))
+               @frankentone.instruments/instruments))
+  (dsp/silence!))
+
+
+(defn a-stop-scheduled [e]
+  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool))
+
+
 (defn a-open-source [e]
   (let [editor (get-active-editor-tab)
         to-look-up (get-token-at-caret editor -1)]
@@ -270,10 +305,13 @@
                     (open-file alternative))
                   (scroll! editor
                            :to [:line (max 0 (dec (:line (meta v))))]))
-              (set-status "Couldn't open source file " sourcefile
+              (status! "Couldn't open source file " sourcefile
                           " for " (str v) ".")))
-          (set-status "Couldn't find source for " (str v) "."))
-        (set-status "Couldn't find source for " (.getLexeme to-look-up) ".")))))
+          (status! "Couldn't find source for " (str v) "."))
+        (status! "Couldn't find source for " (.getLexeme to-look-up) ".")))))
+
+
+(defn a-scope [e] (frankentone.gui.scope/show-scope))
 
 
 (defn a-docstring [e]
@@ -334,24 +372,17 @@
                                   :name "Evaluate selection or line"
                                   :tip "Evaluate the selected text"
                                   :key "shift ENTER")
-        a-start-dsp (action :handler (fn [e] (dsp/start-dsp))
+        a-start-dsp (action :handler a-start-dsp
                             :name "Start DSP loop")
-        a-stop-dsp (action :handler (fn [e] (dsp/stop-dsp))
+        a-stop-dsp (action :handler a-stop-dsp
                            :name "Stop DSP loop")
-        a-stop (action :handler (fn [e]
-                                  (overtone.at-at/stop-and-reset-pool!
-                                   overtone.music.time/player-pool)
-                                  (doall (map  #(.clear (val %))
-                                               @frankentone.instruments/instruments))
-                                  (dsp/silence!))
+        a-stop (action :handler a-stop
                        :name "Set DSP fn to silence and cancel events"
                        :key "menu PERIOD")
         a-stop-scheduled (action
-                          :handler  (fn [e]
-                                      (overtone.at-at/stop-and-reset-pool!
-                                       overtone.music.time/player-pool))
+                          :handler  a-stop-scheduled
                           :name "Cancel scheduled events")
-        a-scope (action :handler (fn [e] (frankentone.gui.scope/show-scope))
+        a-scope (action :handler a-scope
                         :name "Show stethoscope")
         a-docstring (action :handler a-docstring :name "Documentation for symbol"
                             :tip "Show documentation for symbol"
