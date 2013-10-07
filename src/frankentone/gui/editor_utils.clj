@@ -76,7 +76,29 @@
 
 (declare get-context)
 
-(defn make-editor-tab [^File file]
+
+(defn make-context-highlighter [editor-tab]
+  (let [
+        highlighter (.getHighlighter editor-tab)
+        painter (ChangeableHighlightPainter. (color "#aaddff" 128))
+        red-painter (ChangeableHighlightPainter. (color "#ffaaaa" 128))
+        hl (atom nil)]
+    (fn [e]
+      (invoke-later
+       (when @hl
+         (.removeHighlight highlighter @hl))
+       (when-let [new-hl (get-context editor-tab)]
+         (reset! hl
+                 (.addHighlight highlighter
+                                (first new-hl)
+                                (second new-hl)
+                                (if (last new-hl)
+                                  painter
+                                  red-painter))))))))
+
+
+(defn make-editor-tab
+  [^File file]
   (let [editor-tab (rsyntax/text-area
                     :text file
                     :syntax :clojure
@@ -85,23 +107,7 @@
     (.setCodeFoldingEnabled editor-tab true)
     (listen editor-tab
             #{:caret-update}
-            (let [
-                  highlighter (.getHighlighter editor-tab)
-                  painter (ChangeableHighlightPainter. (color "#aaddff" 128))
-                  red-painter (ChangeableHighlightPainter. (color "#ffaaaa" 128))
-                  hl (atom nil)]
-              (fn [e]
-                (invoke-later
-                 (when @hl
-                   (.removeHighlight highlighter @hl))
-                 (when-let [new-hl (get-context editor-tab)]
-                   (reset! hl
-                           (.addHighlight highlighter
-                                          (inc (first new-hl))
-                                          (second new-hl)
-                                          (if (last new-hl)
-                                            painter
-                                            red-painter))))))))
+            (make-context-highlighter editor-tab))
     {:title (.getName file)
      :tip (.getPath file)
      :content  (RTextScrollPane. editor-tab)}))
@@ -118,6 +124,8 @@
 
 
 (defn get-region-boundaries [^RSyntaxTextArea editor pos]
+  ;; as the fold manager doesn't reparse on every keystroke, reparse
+  ;; the file every time to ensure correct boundaries
   (.reparse (.getFoldManager editor))
   (when-let [region (.getDeepestFoldContaining
                      (.getFoldManager editor)
@@ -131,14 +139,14 @@
             (min (inc (.getEndOffset region)) (count (text editor)))))))
 
 
-(defn get-line-boundaries  [^RSyntaxTextArea editor pos]
+(defn get-line-boundaries [^RSyntaxTextArea editor pos]
   (let [line (.getLineOfOffset editor pos)
         start (.getLineStartOffset editor line)
         end (.getLineEndOffset editor line)]
     (list start end)))
 
 
-(defn flash-region [^RSyntaxTextArea editor start end] 
+(defn flash-region [^RSyntaxTextArea editor [start end]] 
   (let [highlighter (.getHighlighter editor)
         painter (ChangeableHighlightPainter. (color "#ffdd66" 128))
         hl (.addHighlight highlighter
@@ -172,9 +180,6 @@
                     ))
                   position)]
        token)))
-
-
-
 
 
 (defn get-context 
@@ -251,6 +256,6 @@
         
         (when closing-brak
           (list
-           (max 0 (dec (first opening-brak)))
+           (first opening-brak)
            (min len-text (inc (first closing-brak)))
            (last closing-brak)))))))

@@ -18,8 +18,7 @@
    (java.awt Container)
    (java.io File)
    (java.awt.im InputContext)
-   (org.fife.ui.rtextarea ChangeableHighlightPainter
-                          RTextAreaEditorKit$DecreaseFontSizeAction
+   (org.fife.ui.rtextarea RTextAreaEditorKit$DecreaseFontSizeAction
                           RTextAreaEditorKit$IncreaseFontSizeAction
                           RTextScrollPane
                           RTextAreaEditorKit)
@@ -128,9 +127,12 @@
                :dir (.getParent (get-current-file))))
 
 
-(defn open-file [^File file]
+(defn open-file
+  "Opens the given file in a new tab or, if the file is already open
+  in the editor, change to the corresponding tab."
+  [^File file]
   (if (get @open-files (.getPath file))
-    (do (loop [i 0]
+    (do (loop [i 0]                     
           (if (= (.getToolTipTextAt editor-tabs i) (.getPath file))
             (.setSelectedIndex editor-tabs i)
             (when (< (inc i) (.getTabCount editor-tabs))
@@ -142,7 +144,10 @@
         (status! "Opened " file "."))))
 
 
-(defn eval-string [to-eval]
+(defn eval-string
+  "Evaluates the given string in the frankentone.live namespace, writes
+  output in the post buffer and the return value in the status bar."
+  [to-eval]
   (let [result
         (with-out-str-and-value
           (try 
@@ -160,12 +165,14 @@
     result))
 
 
-(defn eval-line [^RSyntaxTextArea editor]
+(defn eval-current-line
+  "In the given editor, evaluates the line the caret is in."
+  [^RSyntaxTextArea editor]
   (let [[start end] (get-line-boundaries
                      editor
                      (.getCaretPosition editor))]
     (eval-string (subs (text editor) start end))
-    (flash-region editor start end)))
+    (flash-region editor [start end])))
 
 
 (defn show-documentation [symbol]
@@ -231,7 +238,8 @@
     (swap! open-files assoc (.getPath selected) selected)
     (spit selected (text (get-active-editor-tab)))
     (.setTitleAt editor-tabs (.getSelectedIndex editor-tabs) (.getName selected))
-    (.setToolTipTextAt editor-tabs (.getSelectedIndex editor-tabs) (.getPath selected))
+    (.setToolTipTextAt editor-tabs (.getSelectedIndex editor-tabs)
+                       (.getPath selected))
     (status! "Wrote " selected ".")))
 
 
@@ -239,6 +247,8 @@
 (defn a-copy  [e] (.copy (get-active-editor-tab)))
 (defn a-cut   [e] (.cut (get-active-editor-tab)))
 (defn a-paste [e] (.paste (get-active-editor-tab)))
+
+
 (defn a-comment [e]
   (.actionPerformedImpl
    (RSyntaxTextAreaEditorKit$ToggleCommentAction.) e
@@ -259,10 +269,8 @@
     (let [editor (get-active-editor-tab)]
      (if-let [to-eval (.getSelectedText editor)]
        (do (eval-string to-eval)
-           (flash-region (.getSelectionStart editor)
-                         (.getSelectionEnd editor)
-                         (get-active-editor-tab)))
-       (eval-line editor)))))
+           (flash-region editor (selection editor)))
+       (eval-current-line editor)))))
 
 
 (defn a-eval-region-or-line [e]
@@ -272,8 +280,8 @@
                         editor
                         (.getCaretPosition editor))]
         (do (eval-string (apply subs (text editor) to-eval))
-            (flash-region editor (first to-eval) (second to-eval)))
-        (eval-line editor)))))
+            (flash-region editor to-eval))
+        (eval-current-line editor)))))
 
 
 (defn a-start-dsp [e] (eval-string "(start-dsp)"))
