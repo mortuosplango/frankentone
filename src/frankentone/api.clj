@@ -1,6 +1,5 @@
 (ns frankentone.api
-  (:use [frankentone utils]
-        [overtone.helpers.ns])
+  (:use [overtone.helpers.ns])
   (:require clojure.stacktrace
             clojure.repl
             frankentone.dsp
@@ -17,11 +16,11 @@
 
             frankentone.entropy.entropy
             frankentone.entropy.selfmod
-            
+
+            frankentone.genetic.utils
             frankentone.genetic.analysis
             frankentone.genetic.simplegp
             frankentone.genetic.simplegp-functions
-            frankentone.genetic.utils
             frankentone.genetic.dspgp
 
             overtone.algo.chance
@@ -52,11 +51,11 @@
 
                 frankentone.entropy.entropy
                 frankentone.entropy.selfmod
-                
+
+                frankentone.genetic.utils
                 frankentone.genetic.analysis
                 frankentone.genetic.simplegp
                 frankentone.genetic.simplegp-functions
-                frankentone.genetic.utils
                 frankentone.genetic.dspgp
 
                 overtone.algo.chance
