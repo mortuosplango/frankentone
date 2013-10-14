@@ -170,7 +170,7 @@
   [^RSyntaxTextArea editor]
   (let [[start end] (get-line-boundaries
                      editor
-                     (.getCaretPosition editor))]
+                     (config editor :caret-position))]
     (eval-string (subs (text editor) start end))
     (flash-region editor [start end])))
 
@@ -278,7 +278,7 @@
     (let [editor (get-active-editor-tab)]
       (if-let [to-eval (get-region-boundaries
                         editor
-                        (.getCaretPosition editor))]
+                        (config editor :caret-position))]
         (do (eval-string (apply subs (text editor) to-eval))
             (flash-region editor to-eval))
         (eval-current-line editor)))))
@@ -470,10 +470,12 @@
                                      :name "Speech synthesis example")]))])))
 
 
+
 (defn run []
   (-> (frame
        :title "Franken[~]tone Editor"
        :content main-panel
        :minimum-size [640 :by 480]
        :menubar menus) pack! show!))
+
 

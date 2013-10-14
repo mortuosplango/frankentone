@@ -30,10 +30,11 @@
    (org.fife.ui.rsyntaxtextarea.folding LispFoldParser)))
 
 
-
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
   (let [neo (and (= (.getCountry (.getLocale (InputContext/getInstance))) "US")
-                 (= (.getVariant (.getLocale (InputContext/getInstance))) "UserDefined_ éîuˇ"))
+                 (= (subs (.getVariant (.getLocale (InputContext/getInstance)))
+                          0 13)
+                    "UserDefined_ "))
         shortcuts (list
                    ["menu D" "menu SEMICOLON" "none"]
                    ["menu D" "menu D" "none"]
@@ -170,7 +171,7 @@
      (get-token-at-caret editor 0))
   ([^RSyntaxTextArea editor offset]
      (let [position (max 0 (min (count (text editor))
-                                (+ (.getCaretPosition editor) offset)))
+                                (+ (config editor :caret-position) offset)))
            token (RSyntaxUtilities/getTokenAtOffset
                   (.getTokenListForLine
                    editor
@@ -205,7 +206,7 @@
                            \) \(
                            \} \{
                            \] \[)
-        position (let [pos (max 0 (dec (.getCaretPosition editor)))]
+        position (let [pos (max 0 (dec (config editor :caret-position)))]
                    (if (closing-brak? (.charAt document pos))
                      pos
                      (inc pos))) ;(max 0 (dec))
