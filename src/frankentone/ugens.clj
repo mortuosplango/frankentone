@@ -76,6 +76,11 @@
            (Math/sin (* freq TAU phase))))
 
 
+(defn lfsaw [freq phase] 
+  (let [modu (/ 1.0 freq)]
+    (+ 1.0 (* (mod phase modu) -2.0 freq))))
+
+   
 (defn hardclip
   "Hard clip"
   (^double [input]
@@ -124,6 +129,24 @@
   (tImpulse.  (if (= (double in-phase) 0.0)
            1.0
            (double in-phase))))
+
+
+(deftype tOnePole
+    [^:unsynchronized-mutable ^double last]
+  clojure.lang.IFn
+  (invoke ^double [_ in coef]
+    (let [in-1 last]
+      (+ (* (- 1.0 (Math/abs coef))
+            (set! last (double in)))
+         (* coef
+            in-1)))))
+
+(defn one-pole-c
+  "A one pole filter. Implements the formula:
+
+  out(i) = ((1 - abs(coef)) * in(i)) + (coef * out(i-1))."
+  []
+  (tImpulse. 0.0))
 
 
 (deftype tPulseCount
@@ -762,6 +785,143 @@ Returns a function with the following arguments: [amp freq]"
   (tMoogff. 0.0 0.0 0.0 0.0
             0.0 0.0
             0.0 0.0))
+
+(deftype tAdcverb
+    [^double rev-time
+     ^double hf-damping
+     ^double  predelay 
+     ^int  num-combs
+     ^int  num-allpasses
+     ^double  in-filter 
+     ^double  leak-coef 
+     ^double  comb-scale
+     ^double  ap-scale 
+
+     comb-times
+     allpass-primes
+     allpass-times 
+     allpass-freqs 
+
+     ^tDelay u-predelay 
+     ^tOnePole u-pole 
+
+     ;; TODO round delay times to integer samples
+     ;; and add up to half a sample to them: 
+     ;; linear interpolation between samples loses 
+     ;; high freq energy, with the maximum at 0.5.
+     comb-times-scaled
+
+     u-combs 
+     ^double  feedback
+
+     ;; allpass decay always is shorter than combs decay
+     ^double  ap-decay
+     u-apfs 
+
+     ;; Put the output through nOuts parallel chains of allpass delays
+     ]
+  clojure.lang.IFn
+  (invoke ^double [this in]
+    (let [
+          ;;  TODO block DC, round off and
+          ;;  pre-delay reverb input.
+          in1 (u-predelay
+               (u-pole in in-filter)
+               1.0
+               0.0)
+          
+          ;; Create an array of combs, with a special trick to make
+          ;; treble decay faster than lows:
+          in2 (reduce (fn [val comb]
+                        (+ val (comb in1 1.0 feedback)))
+                      0.0
+                      u-combs)]
+      ;; Put the output through nOuts parallel chains of allpass
+      ;; delays
+      (reduce (fn [val [apf x]]
+                (apf val x 0.5))
+              (+ in2 in) u-apfs))))
+
+(defn adcverb-c
+  "Very rough and incomplete port of the SuperCollider AdCVerb
+  pseudo-ugen.
+
+  See http://quark.sccode.org/SpeakersCorner/AdCVerb.html"
+  []
+  (let [rev-time 3.0
+        hf-damping 0.1
+        predelay 0.02
+        num-combs 8
+        num-allpasses 4
+        in-filter 0.6
+        leak-coef 0.995
+        comb-scale 1.0
+        ap-scale 1.0
+        
+        comb-times 	(take num-combs [0.0797949
+                                     0.060825
+                                     0.0475902 
+                                     0.0854197 
+                                     0.0486931
+                                     0.0654572
+                                     0.0717437
+                                     0.0826624
+                                     0.0707511
+                                     0.0579574
+                                     0.0634719
+                                     0.0662292])
+        allpass-primes (let [prime-range (int (/ 250 num-allpasses))]
+                         (mapv
+                          (fn [x] (nth-prime (rrand (* prime-range (inc x))
+                                                   (* prime-range (+ x 2)))))
+                          (range num-allpasses)))
+        allpass-times (mapv #(double (/ % 44100)) allpass-primes)
+        allpass-freqs (mapv #(double (/ 1.0 %)) allpass-primes)
+
+        u-predelay (delay-c predelay)
+        u-pole (one-pole-c)
+        
+        ;; TODO round delay times to integer samples
+		;; and add up to half a sample to them: 
+		;; linear interpolation between samples loses 
+		;; high freq energy, with the maximum at 0.5.
+        comb-times-scaled (mapv (fn [x] (+ (* x comb-scale)
+                                          (* -1 (mod x sample-dur))
+                                          (* sample-dur 0.5 hf-damping)))
+                                comb-times)
+
+        u-combs (mapv #(delay-c %) comb-times)
+        feedback (/ 1.0 rev-time)
+        
+        ;; allpass decay always is shorter than combs decay
+        ap-decay (min 1.0 (* rev-time 0.6))
+        u-apfs (mapv (fn [x] [(apf-c) x]) allpass-times)
+        ]
+    (tAdcverb.     rev-time
+                   hf-damping
+                   predelay 
+                   num-combs
+                   num-allpasses
+                   in-filter 
+                   leak-coef 
+                   comb-scale
+                   ap-scale 
+                   
+                   comb-times
+                   allpass-primes
+                   allpass-times 
+                   allpass-freqs 
+
+                   u-predelay 
+                   u-pole 
+
+                   comb-times-scaled
+
+                   u-combs 
+                   feedback
+                   
+                   ap-decay
+                   u-apfs)))
 
 
 (definline sum-fns
