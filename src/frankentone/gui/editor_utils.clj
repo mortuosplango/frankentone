@@ -33,8 +33,8 @@
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
   (let [neo (and (= (.getCountry (.getLocale (InputContext/getInstance))) "US")
                  (= (subs (.getVariant (.getLocale (InputContext/getInstance)))
-                          0 13)
-                    "UserDefined_ "))
+                          0 12)
+                    "UserDefined_"))
         shortcuts (list
                    ["menu D" "menu SEMICOLON" "none"]
                    ["menu D" "menu D" "none"]
@@ -72,7 +72,6 @@
         (doall (map #(.put input-map (keystroke/keystroke (first %))
                            (last %))
                     shortcuts))))))
-
 
 
 (declare get-context)
