@@ -1,7 +1,6 @@
 (ns frankentone.api
   (:use [overtone.helpers.ns])
   (:require clojure.stacktrace
-            clojure.repl
             frankentone.dsp
             frankentone.instruments
             frankentone.patterns
@@ -36,7 +35,6 @@
   (apply immigrate
          (map symbol
               '(
-                clojure.repl
                 frankentone.dsp
                 frankentone.instruments
                 frankentone.patterns

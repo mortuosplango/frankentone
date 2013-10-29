@@ -165,6 +165,7 @@
     result))
 
 
+
 (defn eval-current-line
   "In the given editor, evaluates the line the caret is in."
   [^RSyntaxTextArea editor]
@@ -181,7 +182,7 @@
           (try 
             (load-string 
              (str "(use 'frankentone.live) (in-ns 'frankentone.live)"
-                  \( "doc " symbol \) ))
+                  \( "clojure.repl/doc " symbol \) ))
             (catch Exception e e)))]
     (if (= result "")
       (text! documentation-buffer (str
