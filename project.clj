@@ -46,10 +46,11 @@ options can be kept under `:disabled`."
             :url "https://www.gnu.org/licenses/gpl.txt"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
-                 [seesaw "1.4.3"]
+                 [seesaw "1.4.4"]
                  [overtone "0.8.1"]
                  [org.clojars.jeffsigmon/maryclient "4.3.0"]
                  [ddf.minim "2.1.0"]
-                 [incanter "1.5.2"]]
+                 [incanter/incanter-core "1.5.4"]
+                 [incanter/incanter-charts "1.5.4"]]
   :jvm-opts ~(jvm-opts)
   :main frankentone.core)
