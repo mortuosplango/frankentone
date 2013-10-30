@@ -259,3 +259,19 @@
            (first opening-brak)
            (min len-text (inc (first closing-brak)))
            (last closing-brak)))))))
+
+
+(defn factory-function?
+  "Tests if a given symbol represents a positional factory function as
+  created automatically by deftype and defrecord.
+
+  (factory-function? #'frankentone.ugens/->tSinOsc)"
+  [name]
+  (let [to-compare "Positional factory function for class"
+       len (count to-compare)]
+   (when-let [doc (-> name
+                      meta
+                      :doc)]
+     (and (> (count doc) len)
+          (= (subs doc 0 len) to-compare)))))
+

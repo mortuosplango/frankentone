@@ -433,7 +433,9 @@
                                                  (show-documentation (str item)))
                                       :name (str item)
                                       :tip (str "Show documentation for " item)))
-                                   (-> namespace ns-publics keys sort))))
+                                   (->> namespace ns-publics
+                                        (remove (comp factory-function? val))
+                                        keys sort))))
                           [['frankentone.dsp "DSP"]
                            ['frankentone.instruments "Instruments"]
                            ['frankentone.patterns "Patterns"]
