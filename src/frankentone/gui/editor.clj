@@ -435,6 +435,9 @@
                                       :tip (str "Show documentation for " item)))
                                    (->> namespace ns-publics
                                         (remove (comp factory-function? val))
+                                        ;; also remove methods of
+                                        ;; protocols for now
+                                        (remove (comp :protocol meta val))
                                         keys sort))))
                           [['frankentone.dsp "DSP"]
                            ['frankentone.instruments "Instruments"]
