@@ -6,6 +6,13 @@
 
 (def sample-dur (/ 1.0 *sample-rate*))
 
+
+(definline calc-feedback [delaytime decaytime]
+  `(if (> ~decaytime 0.0)
+    (Math/exp (/ (* (Math/log 0.001) ~delaytime) ~decaytime))
+    (* -1.0 (Math/exp (/ (* (Math/log 0.001) ~delaytime) (* -1.0 ~decaytime))))))
+
+
 (definline lerp
   "Calculates a number between two numbers at a specific increment. The
   amt parameter is the amount to interpolate between the two values
@@ -136,7 +143,7 @@
   clojure.lang.IFn
   (invoke ^double [_ in coef]
     (let [in-1 last]
-      (+ (* (- 1.0 (Math/abs coef))
+      (+ (* (- 1.0 (Math/abs (double coef)))
             (set! last (double in)))
          (* coef
             in-1)))))
@@ -146,7 +153,7 @@
 
   out(i) = ((1 - abs(coef)) * in(i)) + (coef * out(i-1))."
   []
-  (tImpulse. 0.0))
+  (tOnePole. 0.0))
 
 
 (deftype tPulseCount
@@ -236,8 +243,6 @@
   Returns a function with the following arguments: [amp freq feedback]"
   [in-phase]
   (tOscFb. (double in-phase) 0.0 (double (/ TAU *sample-rate*)) ))
-
-
 
   
 (deftype tSinOsc
@@ -812,7 +817,6 @@ Returns a function with the following arguments: [amp freq]"
      comb-times-scaled
 
      u-combs 
-     ^double  feedback
 
      ;; allpass decay always is shorter than combs decay
      ^double  ap-decay
@@ -832,15 +836,18 @@ Returns a function with the following arguments: [amp freq]"
           
           ;; Create an array of combs, with a special trick to make
           ;; treble decay faster than lows:
-          in2 (reduce (fn [val comb]
+          in2 (reduce (fn [val [comb feedback]]
                         (+ val (comb in1 1.0 feedback)))
                       0.0
                       u-combs)]
       ;; Put the output through nOuts parallel chains of allpass
       ;; delays
+      
       (reduce (fn [val [apf x]]
                 (apf val x 0.5))
               (+ in2 in) u-apfs))))
+
+
 
 (defn adcverb-c
   "Very rough and incomplete port of the SuperCollider AdCVerb
@@ -890,13 +897,13 @@ Returns a function with the following arguments: [amp freq]"
                                           (* sample-dur 0.5 hf-damping)))
                                 comb-times)
 
-        u-combs (mapv #(delay-c %) comb-times)
-        feedback (/ 1.0 rev-time)
+        u-combs (mapv (fn [x] [(delay-c x) (calc-feedback x rev-time)]) comb-times)
         
         ;; allpass decay always is shorter than combs decay
         ap-decay (min 1.0 (* rev-time 0.6))
         u-apfs (mapv (fn [x] [(apf-c) x]) allpass-times)
         ]
+
     (tAdcverb.     rev-time
                    hf-damping
                    predelay 
@@ -918,7 +925,6 @@ Returns a function with the following arguments: [amp freq]"
                    comb-times-scaled
 
                    u-combs 
-                   feedback
                    
                    ap-decay
                    u-apfs)))
