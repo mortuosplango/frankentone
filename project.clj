@@ -46,6 +46,7 @@ options can be kept under `:disabled`."
             :url "https://www.gnu.org/licenses/gpl.txt"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
+                 [hiphip-aot "0.1.1"]
                  [seesaw "1.4.4"]
                  [overtone "0.8.1"]
                  [org.clojars.jeffsigmon/maryclient "4.3.0"]

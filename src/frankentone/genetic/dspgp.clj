@@ -1,6 +1,8 @@
 (ns frankentone.genetic.dspgp
   (:use [frankentone.genetic analysis simplegp simplegp-functions utils mfcc]
-        [frankentone utils ugens dsp instruments patterns]))
+        [frankentone utils ugens dsp instruments patterns])
+  (:require [hiphip.double :as dbl]
+            [hiphip.float :as fl]))
 
 
 (defn bset!
@@ -11,8 +13,8 @@
   wrapped."
   ^double [x y]
   (let [pos (* (pmod x 1.0) (dec *sample-rate*))
-        previous-value (aget ^doubles buffer pos)]
-    (aset ^doubles buffer pos ^double y)
+        previous-value (dbl/aget buffer pos)]
+    (dbl/aset buffer pos ^double y)
     previous-value))
 
 
@@ -21,7 +23,7 @@
 
   As the buffer is just one second long, other values for x will be
   wrapped."
-  ^double [x] (aget ^doubles buffer (* (pmod x 1.0) (dec *sample-rate*))))
+  ^double [x] (dbl/aget buffer (* (pmod x 1.0) (dec *sample-rate*))))
 
 
 (def dsp-terminals
@@ -43,33 +45,31 @@
   ([ref-data individual]
      (error-fn ref-data [:rms :spf :mfcc :boz] individual))
   ([ref-data features individual]
-     (error-fn ref-data [:rms :spf :mfcc :boz] program->fn individual))
+     (error-fn ref-data features program->fn individual))
   ([ref-data features program->fn individual]
        (let [value-function (program->fn individual)
              no-nan (atom true)
              prev-samp (atom 0.0)
              samples (binding [buffer (double-array *sample-rate* 0.0)]
-                       (amap
-                        ^doubles (:x ref-data)
-                        idx
-                        ret
+                       (dbl/amap
+                        [ret (:x ref-data)]
                         (if @no-nan
-                          (hardclip
-                           (swap! prev-samp
-                                  #(let [new-samp (value-function
-                                                   (aget ret idx)
-                                                   %)]
-                                     (if-not (has-bad-value? new-samp)
-                                       (double new-samp)
-                                       (do (reset! no-nan false)
-                                           0.0)))))
-                          0.0)))
+                         (hardclip
+                          (swap! prev-samp
+                                 #(let [new-samp (value-function
+                                                  ret
+                                                  %)]
+                                    (if-not (has-bad-value? new-samp)
+                                      (double new-samp)
+                                      (do (reset! no-nan false)
+                                          0.0)))))
+                         0.0)))
              result (if (and
                          @no-nan
                          (not=
                           ;; penalize silence
-                          (apply max samples)
-                          (apply min samples)))
+                          (dbl/amax samples)
+                          (dbl/amin samples)))
                       (let [candidate-fft
                             (when (some #{:mfcc :boz :spf} features)
                               (get-fft-mags samples 1024))
@@ -84,6 +84,7 @@
                                                                         1024 0.25)
                                                           (:rms ref-data)))))
                                   0.0)
+                            
                             spf ;; penalize noisyness
                             (if (some #{:spf} features)
                               (* 100.0
@@ -110,19 +111,15 @@
                                        (fn [candidate-frame
                                            ref-frame
                                            ref-frame-weights]
-                                         (reduce +
-                                                 (mapv
-                                                  (fn ^Double [^Double x
-                                                              ^Double y
-                                                              ^Double z]
-                                                    (* (Math/pow
-                                                        (- (Math/abs x)
-                                                           (Math/abs y))
-                                                        2.0)
-                                                       z))
-                                                  candidate-frame
-                                                  ref-frame
-                                                  ref-frame-weights))) 
+                                         (fl/asum
+                                          [x candidate-frame
+                                           y ref-frame
+                                           z ref-frame-weights]
+                                          (* (Math/pow
+                                              (- (Math/abs x)
+                                                 (Math/abs y))
+                                              2.0)
+                                             z))) 
                                        candidate-fft
                                        (:fft ref-data)
                                        (:fft-weights ref-data)))
@@ -132,18 +129,16 @@
                               (* 1000.0
                                  (reduce +
                                        (mapv
-                                        (fn [^floats candidate-frame
-                                            ^floats ref-frame]
+                                        (fn [^doubles candidate-frame
+                                            ^doubles ref-frame]
                                           (Math/sqrt
-                                           (areduce candidate-frame
-                                                    idx
-                                                    ret
-                                                    0.0
-                                                    (Math/pow
-                                                     (- (aget candidate-frame idx)
-                                                        (aget ref-frame idx))
-                                                     2.0)
-                                                    ))) 
+                                           (dbl/asum
+                                            [candidate candidate-frame
+                                             ref ref-frame]
+                                            (Math/pow
+                                             (- candidate
+                                                ref)
+                                             2.0)))) 
                                         (mfcc candidate-fft
                                               (:mfcc-coefs ref-data))
                                         (:mfcc ref-data))))

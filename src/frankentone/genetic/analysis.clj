@@ -1,7 +1,8 @@
 (ns frankentone.genetic.analysis
   (:use [frankentone.genetic hanning mfcc]
         [frankentone utils])
-  (:require [incanter core charts stats])
+  (:require [hiphip.double :as dbl]
+            [hiphip.float :as fl])
   (:import [edu.emory.mathcs.jtransforms.fft FloatFFT_1D]
            [ddf.minim.analysis FFT HannWindow]
            [hep.aida.tfloat.bin
@@ -96,34 +97,41 @@
        (.window fft (HannWindow.))
        (mapv (fn [buf]
                (.forward fft (float-array buf))
-               (amap spectrum i _
-                     (max
-                      Float/MIN_VALUE
-                      (min Float/MAX_VALUE
-                           (.getBand fft i)))))
+               (fl/amap
+                [[i _] spectrum]
+                (max
+                 Float/MIN_VALUE
+                 (min Float/MAX_VALUE
+                      (.getBand fft i)))))
              (partition window-size (* hob window-size) (repeat 0.0)
                         buf)))))
+
+
 
 (defn get-fft-weights
   "Returns the weights for the given fft magnitudes."
   ([fft] (get-fft-weights fft 0.2))
   ([fft O]
-      (mapv
-       (fn [frame]
-         (let [
-               log-frame (incanter.core/log
-                          (incanter.core/abs (vec frame)))
-               min-frame (double (reduce min log-frame))
-               max-frame (reduce max log-frame)]
-           (println min-frame max-frame)
-           (mapv #(+ O
-                     (*
-                      (- 1 O)
-                      (/ (- %1 min-frame)
-                         (Math/abs
-                          (- min-frame max-frame)))))
-                 log-frame)))
-       fft)))
+       (mapv
+        (fn [frame]
+          (let [
+                log-frame (fl/afill!
+                           [x (float-array frame)]
+                           (Math/log (Math/abs x)))
+                min-frame  (fl/amin log-frame)
+               max-frame (fl/amax log-frame)]
+            (println min-frame max-frame)
+            (fl/afill!
+             [x log-frame]
+             (+ O
+                (*
+                 (- 1 O)
+                 (/ (- x min-frame)
+                    (Math/abs
+                     (- min-frame max-frame))))))))
+        fft)))
+
+
 
 
 (defn get-reference-map
@@ -133,7 +141,7 @@
         fft (get-fft-mags samples window-size)]
     (hash-map
      :samples samples
-     :x (amap ^doubles samples i _ (double (/ i *sample-rate*)))
+     :x (dbl/amap [[i _] samples] (/ i *sample-rate*))
      :rms (windowed-rms samples window-size 0.25)
      :smps (reduce #(+ (Math/abs ^double %1) (Math/abs ^double %2)) samples)
      :fft fft

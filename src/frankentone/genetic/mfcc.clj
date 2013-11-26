@@ -10,7 +10,9 @@
 ;; see academic refs, wikipedia and
 ;; http://www.fftw.org/fftw3_doc/Real-even_002fodd-DFTs-_0028cosine_002fsine-transforms_0029.html#Real-even_002fodd-DFTs-_0028cosine_002fsine-transforms_0029
 
-(ns frankentone.genetic.mfcc)
+(ns frankentone.genetic.mfcc
+  (:require [hiphip.double :as dbl]
+            [hiphip.array :as arr]))
 
 
 (let [ ;;g_startbin44100
@@ -42,24 +44,22 @@
     ;; prepare mel
     (let [
           numcoefficients (max 1 (min numcoefficients 42))
-          bands (amap (double-array numbands)
-           idx
-           _
-           (-> (let [bandstart (aget startbin idx)
-                             bandend (aget endbin idx)
-                             index2 (- (aget cumulindex idx) bandstart)]
-                         (reduce
-                          +
-                          (map 
-                           (fn [j]
-                             (let [power (aget data j)]
-                               (* power power (aget bandweights
-                                              (+ index2 j)))))
-                           (range bandstart bandend))))
-               (max 1e-5)
-               Math/log10
-               (+ 5.0)
-               (* 10.0)))]
+          bands (arr/afill!
+                 double
+                 [[idx _] (double-array numbands)
+                  bandstart startbin
+                  bandend endbin
+                  cumulind cumulindex]
+                 (-> (let [index2 (- cumulind bandstart)]
+                       (dbl/asum
+                        [j (double-array (range bandstart bandend))]
+                        (let [power (aget data j)]
+                          (* power power (aget bandweights
+                                               (+ index2 j))))))
+                     (max 1e-5)
+                     Math/log10
+                     (+ 5.0)
+                     (* 10.0)))]
       
 
      ;; now use cosine basis for transform; approximates principal
@@ -74,18 +74,16 @@
      ;; could also divide by numcoefficients, but left off for
      ;; compatibility between MFCCs extracted in different ways
      
-     (amap (float-array numcoefficients)
-           idx
-           _
-           (-> (let [base (* idx 42)]
-                 (reduce +
-                         (map
-                          (fn [j] (* (aget dct (+ base j))
-                                    (aget ^doubles bands j)))
-                          (range numbands))))
-               (* mult)
-               (+ 1.0)
-               (* 0.25))))))
+      (dbl/afill!
+       [[idx _] (double-array numcoefficients)]
+       (-> (let [base (* idx 42)]
+             (dbl/asum
+              [[j band] bands]
+              (* (dbl/aget dct (+ base j))
+                 band)))
+           (* mult)
+           (+ 1.0)
+           (* 0.25))))))
 
 (defn mfcc
   [fft-frames num-coefs]
