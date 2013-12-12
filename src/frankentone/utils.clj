@@ -77,21 +77,11 @@
   (max min-val (min max-val val)))
 
 
-(def scaling-factor (dec (Math/pow 2 15)))
-
-
-(defn scale-f->s
-  "Scale a float value to a short value.
-
-  Clips value at -1.0 and 1.0 before scaling."
-  [f]
-  (short (* (clip-to-range f -1.0 1.0) scaling-factor)))
-
-
-(defn unchecked-scale-f->s 
-  "Scale a float value to a short value without range checking."
-  [f]
-  (unchecked-short (* f scaling-factor)))
+(defn lin->exp [value in-min in-max out-min out-max]
+  (Math/pow (/ out-max out-min)
+            (* (/ (- value in-min)
+                  (- in-max in-min))
+               out-min)))
 
 
 (definline dbg
