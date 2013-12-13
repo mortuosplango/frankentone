@@ -44,8 +44,12 @@ options can be kept under `:disabled`."
   :url "https://github.com/mortuosplango/frankentone"
   :license {:name "GNU General Public License 3"
             :url "https://www.gnu.org/licenses/gpl.txt"}
+  :repositories {"local" ~(str (.toURI (java.io.File. "repo")))}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
+                 [org.jaudiolibs/audioservers "120912"]
+                 [org.jaudiolibs/audioservers-jack "120912"]
+                 [org.jaudiolibs/audioservers-javasound "120912"]
                  [hiphip-aot "0.1.1"]
                  [seesaw "1.4.4"]
                  [overtone "0.8.1"]
