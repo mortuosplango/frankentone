@@ -136,8 +136,8 @@
   time and produces sample values."
   ([name note-kernel]
      `(if-let [inst# (get @instruments (keyword '~name))]
-        (do (.setNoteKernel inst# ~note-kernel)
-            (def ~name (.getFunction inst#)))
+        (do (.setNoteKernel ^CInstrument inst# ~note-kernel)
+            (def ~name (.getFunction ^CInstrument inst#)))
         (when (kernel-good? ~note-kernel)
           (let [instrument# (CInstrument. '~name
                                          (PriorityBlockingQueue.)
