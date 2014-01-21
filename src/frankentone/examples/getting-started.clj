@@ -1,6 +1,7 @@
 (ns frankentone.examples.getting-started
   (:use [frankentone dsp ugens utils patterns instruments]
         [frankentone.examples instruments]
+        [frankentone.libs mandelhub]
         [overtone.music time pitch]
         clojure.repl))
 
@@ -51,13 +52,13 @@
 
 ;; use the provided ugens to filter your custom dsp code
 (reset-dsp! 
- (let [lowpass (lpf-c)]
+ (let [lpf-r (lpf-c)
+ 			 lpf-l (lpf-c)]
    (fn [x chan]
-     (* 0.1
-        (lowpass
-         (saw x (nth [80 80.1] chan))
-         440
-         1.0)))))
+   		(* 0.2 
+   			(if (zero? chan)
+   				(lpf-l (saw x 80) 440 1.0)
+   				(lpf-r (saw x 80.4) 441 1.0))))))
 
 ;; let's play an instrument instead!
 (reset-dsp! 

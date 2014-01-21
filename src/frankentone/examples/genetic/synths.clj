@@ -1,5 +1,5 @@
 (ns frankentone.examples.genetic.synths
-  (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
+  (:use [frankentone.genetic analysis simplegp simplegp-functions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples]
         [overtone.music time])
   (:require [incanter core charts stats]))

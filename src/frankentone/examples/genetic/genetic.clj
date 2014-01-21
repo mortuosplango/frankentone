@@ -1,8 +1,24 @@
 (ns frankentone.examples.genetic.genetic
-  (:use [frankentone.genetic analysis simplegp simplegpfunctions utils dspgp]
+  (:use [frankentone.genetic analysis simplegp simplegp-functions utils dspgp]
         [frankentone utils ugens dsp instruments patterns samples])
   (:require [incanter core charts stats]
+            [hiphip.double :as dbl]
             clojure.java.io))
+
+
+
+
+
+(do
+  (def reference
+    (get-reference-map
+     (let [len (* 1024 4)]
+       (dbl/afill!
+        [[idx _] (double-array (* 1024 4))]
+        (Math/tanh
+         (* 2.05 (Math/sin (* (/ idx *sample-rate*) 220.0 TAU))))))))
+  (error-fn reference '(Math/tanh
+                                (* 2.05 (Math/sin (* x 220.0 TAU))))))
 
 
 (do
@@ -15,22 +31,36 @@
       :error 1000.0
       :changed true})))
 
-
-(do
-  (reset! reference
-          (get-reference-map
-           (amap (double-array (* 1024 4)) idx ret
-                 (Math/tanh
-                  (* 2.05 (Math/sin (* (/ idx *sample-rate*) 220.0 TAU)))))))
-  (dynamic-error-fn reference '(Math/tanh
-              (* 2.05 (Math/sin (* x 220.0 TAU))))))
+(dotimes [i 3]
+  (time
+   (dotimes [i 10]
+     (error-fn @reference
+               [:rms]
+               '(if>0 (+ (* (* *sample-rate* x prev) (+ (* 4.239626725410776 (sin (+ *sample-rate* (* *sample-rate* x prev))) prev) -0.22132726531217406) prev) (mul-sin TAU x)) (+ x x) (- (mul-cos *sample-rate* (mul-sin TAU x)) 0.023044934598853834))))
+   ))
 
 
-(time
- (dotimes [i 10]
-   (error-fn @reference
-             [:mfcc]
-             '(if>0 (+ (* (* *sample-rate* x prev) (+ (* 4.239626725410776 (sin (+ *sample-rate* (* *sample-rate* x prev))) prev) -0.22132726531217406) prev) (mul-sin TAU x)) (+ x x) (- (mul-cos *sample-rate* (mul-sin TAU x)) 0.023044934598853834)))))
+(hiphip.array/amap
+ [x (double-array (range 0 20))
+  :let [y (< x  7)]
+  :while (= y true)]
+  y)
+
+;; nothing:
+;; 500 ms
+
+;; mfcc:
+;; 730 ms
+
+;; spf:
+;; 650 ms
+
+;; boz:
+;; 630 ms
+
+;; rms:
+;; 780 ms
+
 
 
 (defn best-callback
