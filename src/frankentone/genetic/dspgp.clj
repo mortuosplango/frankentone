@@ -1,8 +1,8 @@
 (ns frankentone.genetic.dspgp
   (:use [frankentone.genetic analysis simplegp simplegp-functions utils mfcc]
         [frankentone utils ugens dsp instruments patterns])
-  (:require [hiphip.double :as dbl]
-            [hiphip.float :as fl]))
+  (:require [hiphip.double]
+            [hiphip.float]))
 
 
 (defn bset!
@@ -13,8 +13,8 @@
   wrapped."
   ^double [x y]
   (let [pos (* (pmod x 1.0) (dec *sample-rate*))
-        previous-value (dbl/aget buffer pos)]
-    (dbl/aset buffer pos ^double y)
+        previous-value (hiphip.double/aget buffer pos)]
+    (hiphip.double/aset buffer pos ^double y)
     previous-value))
 
 
@@ -23,10 +23,10 @@
 
   As the buffer is just one second long, other values for x will be
   wrapped."
-  ^double [x] (dbl/aget buffer (* (pmod x 1.0) (dec *sample-rate*))))
+  ^double [x] (hiphip.double/aget buffer (* (pmod x 1.0) (dec *sample-rate*))))
 
 
-(def dsp-terminals
+(def ^:dynamic dsp-terminals
   (concat random-terminals
            '('prev
              'TAU
@@ -35,7 +35,7 @@
              '*sample-rate*)))
 
 
-(def dsp-functions
+(def ^:dynamic dsp-functions
   (conj random-functions
         { :fn 'bset! :arity 2 }
         { :fn 'bget :arity 1 }))
@@ -158,3 +158,72 @@
      (error-fn @reference-atom individual))
   ([reference-atom features individual]
      (error-fn @reference-atom features individual)))
+
+
+(defprotocol PEvolution
+  (next-gen [this])
+  (next-gen- [this])
+  (start-auto [this & { :keys [delay] :or {delay 1000}}])
+  (stop-auto [this]))
+
+
+(deftype AudioEvolution
+    [instname
+     target
+     e-state
+     auto?]
+  PEvolution
+  (next-gen [this]
+    (println instname "[~] calculating next generation")
+    (future (next-gen- this)))
+  (next-gen- [this]
+    (let [instfn
+          (binding [buffer (double-array *sample-rate* 0.0)]
+            (let [
+                  val-func (program->fn
+                            (first
+                             (:population
+                              (swap! e-state next-generation))))
+                  prev-samp (atom 0.0)]
+              (fn ^Double [x]
+                (swap! prev-samp #(val-func x %)))))
+          len (* (count (:samples target)) sample-dur)]
+      (when-let [inst (get @instruments (keyword instname))]
+        (.setNoteKernel inst
+                        (fn [freq amp dur]
+                          (fn ^double [x]
+                            (if (< x len)
+                              (* amp (instfn x))
+                              0.0)))))))
+  (start-auto [this & { :keys [delay] :or {delay 1000}}]
+    (future
+      (println instname "[~] starting auto evolution")
+      (reset! auto? true)
+      (while @auto?
+        (next-gen- this)
+        (Thread/sleep delay)
+        )))
+  (stop-auto [this]
+    (reset! auto? false)))
+
+
+
+(defmacro defgen
+  [name instname target]
+  `(let [ref-map# (get-reference-map ~target)]
+     (when-not (contains? @instruments (keyword ~instname))
+       (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
+                   (symbol ~instname) 'definst)))
+     (def ~name
+       (AudioEvolution. ~instname
+                        ref-map#
+                        (atom (next-generation
+                               300
+                               (memoize
+                                (partial error-fn
+                                         ref-map#
+                                         [:rms :mfcc]))
+                               :terminals dsp-terminals
+                               :functions dsp-functions))
+                        (atom false)))))
+
