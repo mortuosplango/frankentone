@@ -83,12 +83,13 @@
                                       (if callback-fn
                                         `(make-real ~number#
                                                     (partial  ~callback-fn
-                                                             ~(str name)
-                                                             ~(deref position#)))
+                                                              ~(str name)
+                                                              ~(deref position#)))
                                         `(make-real ~number#)))
                                (conj nil sym#))
                              input#))
                          input#)
+                       ;; unmarked:
                        (if
                            (or (number? input#)
                                (char? input#)
@@ -98,16 +99,16 @@
                                   conj sym#
                                   (if callback-fn
                                     `(~(cond (number? input#) `make-real
-                                           (char? input#) `make-char
-                                           (string? input#) `make-string)
+                                             (char? input#) `make-char
+                                             (string? input#) `make-string)
                                       ~input#
                                       (partial (eval ~callback-fn)
                                                ~(str name)
                                                ~(deref position#)))
                                     `(~(cond (number? input#) `make-real
-                                           (char? input#) `make-char
-                                           (string? input#) `make-string)
-                                    ~input#)))
+                                             (char? input#) `make-char
+                                             (string? input#) `make-string)
+                                      ~input#)))
                            (conj nil sym#))
                          input#)))
                    body)]
