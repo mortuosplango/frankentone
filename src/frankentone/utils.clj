@@ -8,6 +8,7 @@
 
 (def ^:dynamic *sample-rate* 44100.0)
 
+(def ^:dynamic *latency* 0.1)
 
 (defn nows
   "Returns the current time in seconds"
