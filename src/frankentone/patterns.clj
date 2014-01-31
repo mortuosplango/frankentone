@@ -3,7 +3,11 @@
 (ns frankentone.patterns
   (:use frankentone.instruments
         frankentone.utils
-        overtone.music.pitch))
+        frankentone.entropy.entropy
+        frankentone.entropy.selfmod
+        clojure.walk
+        overtone.music.pitch
+        overtone.music.time))
 
 
 (declare play-pattern)
@@ -78,7 +82,52 @@
                   (remove #(= (first %) :|)
                           (partition-by #(= % :|)
                                         (if (set? coll)
-                                          (interleave coll (repeat ||))
+                                          (interpose || coll)
                                           coll)))))))
 
 
+(defprotocol Pattern ;; playable?
+  (start [this])
+  (stop [this])
+  (gui [this]))
+
+(deftype tPattern
+    [pat-name
+     pattern-fn
+     instrument
+     duration
+     running?]
+  clojure.lang.IFn
+  (invoke [this t]
+    (play-pattern (pattern-fn)
+                  duration *latency* instrument)
+    (println pat-name)
+    (when @running?
+     (let [next-t (+ t (* duration 1000))]
+       (apply-at next-t pat-name [next-t]))))
+  Pattern
+  (start [this]
+    (when-not @running?
+      (reset! running? true)
+      (this (+ (now) *latency*))))
+  (stop [this]
+    (reset! running? false))
+  (gui [this]))
+
+
+
+(defmacro defpat
+  ([name pattern &{ :keys [duration instrument]
+                   :or {duration 2.0
+                        instrument :default}}]
+     `(def ~name
+        (tPattern.
+         #'~name
+         (fn->fntropy ~name [] ~pattern false (frankentone.live/make-selfmod
+                                               false :body-pos 2))
+         ~instrument
+         ~duration
+         (atom (if
+                   (= (class ~name) tPattern)
+                 @(.running? ~name)
+                 false))))))
