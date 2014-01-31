@@ -202,6 +202,108 @@
 
 (def ^:dynamic *evolution* (atom true))
 
+
+(defrecord EvolutionaryState
+    [mutation-rate
+     crossover-rate
+     clone-rate
+     vary-rate
+     random-code-rate
+     functions 
+     terminals
+     logfile
+     popsize
+     error-fn
+     population
+     errors
+     generation
+     start-time])
+
+
+(defn next-generation
+  "Compute the next generation.
+
+  Error-fn has to accept an individual and return an error factor (the
+  higher, the worse).
+
+  Optional best-callback will accept the best program and its error."
+  ([state]
+     (binding [random-functions (:functions state)
+               random-terminals (:terminals state)]
+       (let [popsize (:popsize state)
+             population (:population state)
+             generation (:generation state)
+             logfile (:logfile state)
+             [errors population]
+             (sort-by-error      
+              (concat
+               (repeatedly (* (:mutation-rate state) popsize) #(mutate (select population 7)))
+               (repeatedly (* (:crossover-rate state) popsize) #(crossover (select population 7)
+                                                                           (select population 7)))
+               (repeatedly (* (:clone-rate state) popsize) #(select population 7))
+               (repeatedly (* (:vary-rate state) popsize) #(vary (select population 7)))
+               (repeatedly (* (:random-code-rate state) popsize)
+                           #(random-code (inc (rand-int 20)))))
+              (:error-fn state))
+             best (first population)
+             best-error (first errors)]
+         (println "======================")
+         (println "Generation:" generation)
+         (println "Best error:" best-error)
+         (println "Best program:" best)
+         (let [median-error (nth errors (int (/ popsize 2)))
+               average-pg-size (float
+                                (/ (reduce + (mapv (comp count flatten) population))
+                                   (count population)))]
+           (println "     Median error:" median-error)
+           (println "     Average program size:" average-pg-size)
+           (when (not (nil? logfile))
+             (spit logfile (str "\n") :append true)
+             (spit logfile {:generation generation
+                            :date (new java.util.Date)
+                            :time (- (nows) (:start-time state))
+                            :median-error median-error
+                            :average-program-size average-pg-size
+                            :errors errors
+                            :best-program (str best)
+                            ;; :population (str population)
+                            } :append true)))
+         (assoc state
+           :population population
+           :errors errors
+           :generation (inc generation)))))
+  
+  ([popsize error-fn & { :keys  [mutation-rate crossover-rate clone-rate
+                                 vary-rate random-code-rate
+                                 functions terminals logfile]
+                        :or   {mutation-rate 0.35
+                               crossover-rate 0.25
+                               clone-rate 0.23
+                               vary-rate 0.13
+                               random-code-rate 0.04
+                               functions random-functions
+                               terminals random-terminals}}]
+     (println "Starting evolution...")
+     (let [start-time (nows)
+           generation 0
+           [errors population] (sort-by-error
+                                (repeatedly popsize #(random-code 2)) error-fn)]
+       (EvolutionaryState. mutation-rate
+                           crossover-rate
+                           clone-rate
+                           vary-rate
+                           random-code-rate
+                           functions 
+                           terminals
+                           logfile
+                           popsize
+                           error-fn
+                           population
+                           errors
+                           generation
+                           start-time))))
+
+
 (defn evolve
   "Start evolution.
 
@@ -213,81 +315,24 @@
                                 mutation-rate crossover-rate clone-rate
                                 vary-rate random-code-rate
                                 functions terminals logfile]
-                       :or   {best-callback nil
-                              stat-callback nil
-                              stop-atom *evolution*
-                              success-threshold 0.1
-                              mutation-rate 0.35
-                              crossover-rate 0.25
-                              clone-rate 0.23
-                              vary-rate 0.13
-                              random-code-rate 0.04
-                              functions random-functions
-                              terminals random-terminals}}]
+                       }]
   (println "Starting evolution...")
-  (let [start-time (nows)]
-    (when (not (nil? logfile))
-      ;; start log
-      (spit logfile (str "\n") :append true)
-      (spit logfile {:date (new java.util.Date)
-                     :time 0
-                     :success-threshold success-threshold
-                     :mutation-rate mutation-rate
-                     :crossover-rate crossover-rate
-                     :clone-rate clone-rate 
-                     :vary-rate vary-rate 
-                     :random-code-rate random-code-rate
-                     :functions (str (apply list functions))
-                     :terminals (str (apply list terminals))
-                     :population-size popsize
-                     ;; :error-fn error-fn
-                     } :append true))
-    (reset! stop-atom true)
-    (binding [random-functions functions
-              random-terminals terminals]
-      (loop [generation 0
-             [errors population] (sort-by-error
-                                  (repeatedly popsize #(random-code 2)) error-fn)]
-        (let [best (first population)
-              best-error (first errors)]
-          (println "======================")
-          (println "Generation:" generation)
-          (println "Best error:" best-error)
-          (println "Best program:" best)
-          (when (fn? best-callback)
-            (best-callback best best-error))
-          (let [median-error (nth errors (int (/ popsize 2)))
-                average-pg-size (float
-                                 (/ (reduce + (mapv (comp count flatten) population))
-                                    (count population)))]
-            (println "     Median error:" median-error)
-            (println "     Average program size:" average-pg-size)
-            (when (not (nil? logfile))
-              (spit logfile (str "\n") :append true)
-              (spit logfile {:generation generation
-                             :date (new java.util.Date)
-                             :time (- (nows) start-time)
-                             :success (< best-error success-threshold)
-                             :median-error median-error
-                             :average-program-size average-pg-size
-                             :errors errors
-                             :best-program (str best)
-                             ;; :population (str population)
-                             } :append true)))
-          ;; good enough to count as success
-          (if (or (not @stop-atom) (< best-error success-threshold)) 
-            (println "Success:" best)
-            (recur 
-             (inc generation)
-             (sort-by-error      
-              (concat
-               (repeatedly (* mutation-rate popsize) #(mutate (select population 7)))
-               (repeatedly (* crossover-rate popsize) #(crossover (select population 7)
-                                                                  (select population 7)))
-               (repeatedly (* clone-rate popsize) #(select population 7))
-               (repeatedly (* vary-rate popsize) #(vary (select population 7)))
-               (repeatedly (* random-code-rate popsize)
-                           #(random-code (inc (rand-int 20)))))
-              error-fn))))))))
-
-
+  (reset! stop-atom true)
+  (loop [state (next-generation [popsize error-fn
+                                 :best-callback best-callback
+                                 :stop-atom stop-atom
+                                 :success-threshold success-threshold
+                                 :mutation-rate mutation-rate :crossover-rate crossover-rate
+                                 :clone-rate clone-rate :vary-rate vary-rate
+                                 :random-code-rate random-code-rate
+                                 :functions functions :terminals terminals
+                                 :logfile logfile])]
+    (when (fn? best-callback)
+      (best-callback
+       (first (:population state))
+       (first (:error state))))
+    ;; good enough to count as success?
+    (if (or (not @stop-atom) (< (first (:error state)) success-threshold)) 
+      (println "Success:" (:population state))
+      (recur
+       (next-generation state)))))
