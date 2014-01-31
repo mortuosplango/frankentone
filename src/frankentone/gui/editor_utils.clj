@@ -27,7 +27,8 @@
                                 RSyntaxUtilities
                                 RSyntaxDocument
                                 TokenTypes)
-   (org.fife.ui.rsyntaxtextarea.folding LispFoldParser)))
+   (org.fife.ui.rsyntaxtextarea.folding LispFoldParser
+                                        Fold)))
 
 
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
@@ -77,7 +78,7 @@
 (declare get-context)
 
 
-(defn make-context-highlighter [editor-tab]
+(defn make-context-highlighter [^RSyntaxTextArea editor-tab]
   (let [
         highlighter (.getHighlighter editor-tab)
         painter (ChangeableHighlightPainter. (color "#aaddff" 128))
@@ -132,11 +133,11 @@
                      pos)]
     ;;(println region)
     (let [region (loop [fold region]
-                   (if (.getParent fold)
-                     (recur (.getParent fold))
-                     fold))]
-      (list (.getStartOffset region)
-            (min (inc (.getEndOffset region)) (count (text editor)))))))
+                         (if (.getParent fold)
+                           (recur (.getParent fold))
+                           fold))]
+      (list (.getStartOffset ^Fold region)
+            (min (inc (.getEndOffset ^Fold region)) (count (text editor)))))))
 
 
 (defn get-line-boundaries [^RSyntaxTextArea editor pos]
@@ -188,9 +189,9 @@
   were found.
 
   Limitations: Doesn't ignore comments."
-  [editor]
+  [^RSyntaxTextArea editor]
   (let [
-        document (.getDocument editor)
+        document ^RSyntaxDocument (.getDocument editor)
         len-text (count (text editor))
         closing-brak? #(or (= % \))
                            (= % \})
