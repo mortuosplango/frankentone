@@ -1,6 +1,7 @@
 (ns frankentone.entropy.selfmod
   (:use [frankentone.entropy entropy]
         [frankentone utils])
+  (:require [frankentone.gui editor editor-utils])
   (:import
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea)))
 
@@ -10,8 +11,6 @@
                         (seesaw.core/text editor)
                         start
                         end))
-        ;; parse the string
-        code (read-string @code-str)
         position (atom 0)]
     (clojure.walk/postwalk
      (fn [input]
@@ -23,10 +22,10 @@
                   (clojure.string/re-quote-replacement (str "?" value))
                   (str value)))
          input))
+     ;; parse the string and
      ;; walk only the body of the function
-     (nth code body-pos))
+     (nth (read-string @code-str) body-pos))
     @code-str))
-
 
 (defn selfmod-cb [editor marked? name pos value 
                   & { :keys [body-pos]
@@ -35,8 +34,7 @@
         target (.indexOf (seesaw.core/text editor)
                          name)
         ;; save the old text
-        old-text (seesaw.core/text editor)
-        ]
+        old-text (seesaw.core/text editor)]
     (when (not= target -1) ;; if a target is found
       ;; get the region of the target function in the string
       (when-let [bounds (if-let [region
@@ -69,18 +67,15 @@
                 ;; restore the caret position and selection
                 (.setCaretPosition editor (new-pos old-caret))
                 (when old-selection
-                  ;; (println old-selection (mapv new-pos old-selection)
-                  ;;          end
-                  ;;          [(new-pos (first old-selection)) (new-pos (second old-selection))]
-                  ;;          (count (seesaw.core/text editor)))
                   (seesaw.core/selection! editor (map new-pos old-selection)))))))))))
 
 
 (defn make-selfmod [marked? & { :keys [body-pos] :or {body-pos 3}}]
-  (let [tab (frankentone.gui.editor/get-active-editor-tab)]
-    (fn [name pos value]
-      (seesaw.core/invoke-later
-       (selfmod-cb tab marked? name pos value :body-pos body-pos)))))
+  (let [tab (frankentone.gui.editor/get-active-editor-tab)
+        cb (partial selfmod-cb tab marked?)]
+    (seesaw.invoke/signaller
+     [name pos value]
+     (cb name pos value :body-pos body-pos))))
 
 
 (defmacro defntropy-sm
