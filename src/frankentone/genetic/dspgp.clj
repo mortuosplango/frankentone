@@ -1,8 +1,8 @@
 (ns frankentone.genetic.dspgp
   (:use [frankentone.genetic analysis simplegp simplegp-functions utils mfcc]
         [frankentone utils ugens dsp instruments patterns])
-  (:require [hiphip.double]
-            [hiphip.float]))
+  (:require [hiphip.double :as dbl]
+            [hiphip.float :as fl]))
 
 
 (defn bset!

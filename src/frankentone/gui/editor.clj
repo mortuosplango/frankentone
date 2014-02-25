@@ -9,9 +9,7 @@
             [seesaw.rsyntax :as rsyntax]
             [seesaw.keystroke :as keystroke]
             [frankentone.dsp :as dsp]
-            [frankentone.gui scope]
-            [frankentone instruments patterns speech utils]
-            [frankentone.entropy entropy])
+            [frankentone.gui scope])
   (:import
    (java.io Writer)
    (javax.swing.text DefaultEditorKit)
@@ -335,7 +333,7 @@
   (open-file (file path)))
 
 
-(def menus
+(defn menus []
   (let [a-new (action :handler a-new :name "New"
                       :tip "Create a new file."
                       :key "menu N")
@@ -482,6 +480,4 @@
        :title "Franken[~]tone Editor"
        :content main-panel
        :minimum-size [640 :by 480]
-       :menubar menus) pack! show!))
-
-
+       :menubar (menus)) pack! show!))

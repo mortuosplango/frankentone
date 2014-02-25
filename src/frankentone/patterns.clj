@@ -3,7 +3,6 @@
 (ns frankentone.patterns
   (:use frankentone.instruments
         frankentone.utils
-        frankentone.entropy.entropy
         frankentone.entropy.selfmod
         clojure.walk
         overtone.music.pitch
@@ -91,6 +90,7 @@
   (stop [this])
   (gui [this]))
 
+
 (deftype tPattern
     [pat-name
      pattern-fn
@@ -115,7 +115,6 @@
   (gui [this]))
 
 
-
 (defmacro defpat
   ([name pattern &{ :keys [duration instrument]
                    :or {duration 2.0
@@ -123,8 +122,7 @@
      `(def ~name
         (tPattern.
          #'~name
-         (fn->fntropy ~name [] ~pattern false (frankentone.live/make-selfmod
-                                               false :body-pos 2))
+         (frankentone.entropy.entropy/fn->fntropy ~name [] ~pattern false (make-selfmod false :body-pos 2))
          ~instrument
          ~duration
          (atom (if

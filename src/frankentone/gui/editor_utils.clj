@@ -3,11 +3,7 @@
         [clojure.java.io :only [file resource]])
   (:require [overtone.music time rhythm pitch]
             [seesaw.rsyntax :as rsyntax]
-            [seesaw.keystroke :as keystroke]
-            [frankentone.dsp :as dsp]
-            [frankentone.gui scope]
-            [frankentone instruments patterns speech utils]
-            [frankentone.entropy entropy])
+            [seesaw.keystroke :as keystroke])
   (:import
    (java.io Writer)
    (javax.swing.text DefaultEditorKit)

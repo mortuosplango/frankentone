@@ -1,7 +1,7 @@
 (ns frankentone.core
   (:gen-class)
-  (:use frankentone.gui.editor)
-  (:use frankentone.live))
+  (:use frankentone.live)
+  (:use frankentone.gui.editor))
 
 (defn -main
   []

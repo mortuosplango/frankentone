@@ -2,12 +2,8 @@
 ;; based on https://gist.github.com/lspector/1384682/
 
 (ns frankentone.genetic.simplegp
-  (:use [frankentone utils
-         ugens]
-        [frankentone.genetic 
-         analysis
-         simplegp-functions
-         utils])
+  (:use [frankentone utils ugens]
+        [frankentone.genetic analysis simplegp-functions utils])
   (:require [incanter core charts stats])
   (:import [edu.emory.mathcs.jtransforms.fft FloatFFT_1D]))
 

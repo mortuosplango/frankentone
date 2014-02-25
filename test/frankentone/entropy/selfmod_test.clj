@@ -2,7 +2,8 @@
   (:use clojure.test
         frankentone.entropy.selfmod)
   (:require [seesaw.rsyntax :as rsyntax]
-            [frankentone.gui.editor-utils]
+            [frankentone.live]
+            [frankentone.gui editor editor-utils]
             [seesaw.core])
   (:import
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea)))
@@ -65,7 +66,7 @@
                       editor (.indexOf (seesaw.core/text editor)  "t88"))]
      (is (= (swap-val editor false start end 1 79 3)
             "(defn t88 [] [79 70 60]
-               )")))))
+  )")))))
 
 ;;(seesaw.core/text editor)
 

@@ -1,6 +1,7 @@
 (ns frankentone.utils
   (:use clojure.walk
-        frankentone.libs.app-icon))
+        frankentone.libs.app-icon)
+  (:require overtone.music.pitch))
 
 
 (def TAU (* Math/PI 2))
