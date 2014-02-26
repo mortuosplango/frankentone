@@ -27,8 +27,7 @@
                                 RSyntaxTextAreaDefaultInputMap
                                 RSyntaxUtilities
                                 RSyntaxDocument
-                                TokenTypes)
-   (org.fife.ui.rsyntaxtextarea.folding LispFoldParser)))
+                                TokenTypes)))
 
 
 (native!)
@@ -157,8 +156,8 @@
                   (.append post-buffer
                            (str
                             (when (not= (first result) "")
-                              (str (first result) "\n")) 
-                            (last result) "\n"))
+                              (println-str (first result) "\n")) 
+                            (println-str (last result))))
                   (scroll! post-buffer :to :bottom))
     result))
 
@@ -456,23 +455,23 @@
                             [(action :handler
                                      (partial a-open-file
                                               (str expath "getting-started.clj"))
-                                     :name "Getting started"
-                                     :tip "Open the tutorial.")
+                                     :name "Getting started")
                              (action :handler
                                      (partial a-open-file
                                               (str expath "instruments.clj"))
-                                     :name "Example instruments"
-                                     :tip "Open the example instruments.")
+                                     :name "Example instruments")
                              (action :handler
                                      (partial a-open-file
                                               (str expath "sampled.clj"))
-                                     :name "How to use samples"
-                                     :tip "Open the samples example.")
+                                     :name "How to use samples")
                              (action :handler
                                      (partial a-open-file
                                               (str expath "speech.clj"))
-                                     :name "Speech synthesis example")]))])))
-
+                                     :name "Speech synthesis example")
+                             (action :handler
+                                     (partial a-open-file
+                                              (str expath "genetic/defgen.clj"))
+                                     :name "Genetic programming example")]))])))
 
 
 (defn run []
@@ -481,3 +480,4 @@
        :content main-panel
        :minimum-size [640 :by 480]
        :menubar (menus)) pack! show!))
+
