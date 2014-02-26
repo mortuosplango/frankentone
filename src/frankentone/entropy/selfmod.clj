@@ -11,21 +11,30 @@
                         (seesaw.core/text editor)
                         start
                         end))
-        position (atom 0)]
+        position (atom 0)
+        value (if (number? value)
+                (scround value 0.001)
+                value)]
+    ;;(println "START " code-str (nth (read-string @code-str) body-pos))
     (clojure.walk/postwalk
      (fn [input]
        (if (= (swap! position inc) pos)
-         (swap! code-str
-                clojure.string/replace-first
-                (str input)
-                (if marked?
-                  (clojure.string/re-quote-replacement (str "?" value))
-                  (str value)))
+         (do
+           ;;(println "WALK" position pos input)
+           (swap! code-str
+                  clojure.string/replace-first
+                  (if (nil? input)
+                    "nil"
+                    (print-str input))
+                  (if marked?
+                    (clojure.string/re-quote-replacement (print-str "?" value))
+                    (print-str value))))
          input))
      ;; parse the string and
      ;; walk only the body of the function
      (nth (read-string @code-str) body-pos))
     @code-str))
+
 
 (defn selfmod-cb [editor marked? name pos value 
                   & { :keys [body-pos]

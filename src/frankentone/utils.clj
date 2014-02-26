@@ -150,6 +150,16 @@
     `(let ~(deref vars#) (fn ~args
                            ~new-body#))))
 
+(defn scround
+  "Dirty SuperCollider-like round fn.
+
+  Rounds to the nearest integer or optionally to the nearest multiple
+  of y."
+  ([x]
+     (Math/round x))
+  ([x y]
+     (float (* (Math/round (/ x y))
+               y))))
 
 (defn hz->mel [freq]
   (* 1127 (Math/log (+ 1.0 (/ freq 700.0)))))
