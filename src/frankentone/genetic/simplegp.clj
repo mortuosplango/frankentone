@@ -271,7 +271,7 @@
   
   ([popsize error-fn & { :keys  [mutation-rate crossover-rate clone-rate
                                  vary-rate random-code-rate
-                                 functions terminals logfile]
+                                 functions terminals logfile seed]
                         :or   {mutation-rate 0.35
                                crossover-rate 0.25
                                clone-rate 0.23
@@ -283,7 +283,12 @@
      (let [start-time (nows)
            generation 0
            [errors population] (sort-by-error
-                                (repeatedly popsize #(random-code 2)) error-fn)]
+                                (if (nil? seed)
+                                  (repeatedly popsize #(random-code 2))
+                                  ;; seed the initial population
+                                  (concat
+                                   (repeatedly (* popsize 0.75) #(random-code 2))
+                                   (repeat (* popsize 0.25) seed))) error-fn)]
        (EvolutionaryState. mutation-rate
                            crossover-rate
                            clone-rate

@@ -167,11 +167,12 @@
   (stop-auto [this]))
 
 
-(deftype AudioEvolution
+(deftype AudioEvolution2
     [instname
      target
      e-state
-     auto?]
+     auto?
+     selfmod-cb-fn]
   PEvolution
   (next-gen [this]
     (println instname "[~] calculating next generation")
@@ -179,17 +180,16 @@
   (next-gen- [this]
     (let [instfn
           (binding [buffer (double-array *sample-rate* 0.0)]
-            (let [
-                  val-func (program->fn
-                            (first
-                             (:population
-                              (swap! e-state next-generation))))
+            (let [best (first (:population
+                               (swap! e-state next-generation)))
+                  val-func (program->fn best)
                   prev-samp (atom 0.0)]
+              (selfmod-cb-fn best)
               (fn ^Double [x]
                 (swap! prev-samp #(val-func x %)))))
           len (* (count (:samples target)) sample-dur)]
       (when-let [inst (get @instruments (keyword instname))]
-        (.setNoteKernel inst
+        (setNoteKernel inst
                         (fn [freq amp dur]
                           (fn ^double [x]
                             (if (< x len)
@@ -207,23 +207,35 @@
     (reset! auto? false)))
 
 
-
 (defmacro defgen
-  [name instname target]
-  `(let [ref-map# (get-reference-map ~target)]
+  "Convenience macro to define and control a genetic programming
+  process.
+
+  If the seed argument is nil, no seed is used."
+  [name instname target seed]
+  `(let [ref-map# (get-reference-map ~target)
+         selfmod-cb-fn# (partial
+                         (frankentone.entropy.selfmod/make-selfmod
+                          false
+                          :body-pos 4)
+                         ~(str "defgen " name) 1)
+         first-gen# (next-generation
+                     300
+                     (memoize
+                      (partial error-fn
+                               ref-map#
+                               [:rms :mfcc]))
+                     :seed '~seed
+                     :terminals dsp-terminals
+                     :functions dsp-functions)]
+     (selfmod-cb-fn# (first (:population first-gen#)))
      (when-not (contains? @instruments (keyword ~instname))
        (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
                    (symbol ~instname) 'definst)))
      (def ~name
-       (AudioEvolution. ~instname
+       (AudioEvolution2. ~instname
                         ref-map#
-                        (atom (next-generation
-                               300
-                               (memoize
-                                (partial error-fn
-                                         ref-map#
-                                         [:rms :mfcc]))
-                               :terminals dsp-terminals
-                               :functions dsp-functions))
-                        (atom false)))))
+                        (atom first-gen#)
+                        (atom false)
+                        selfmod-cb-fn#))))
 

@@ -6,7 +6,7 @@
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea)))
 
 
-(defn swap-val [editor marked? start end pos value body-pos]
+(defn swap-val [^RSyntaxTextArea editor marked? start end pos value body-pos]
   (let [code-str (atom (subs
                         (seesaw.core/text editor)
                         start
@@ -14,46 +14,47 @@
         position (atom 0)
         value (if (number? value)
                 (scround value 0.001)
-                value)]
-    ;;(println "START " code-str (nth (read-string @code-str) body-pos))
-    (clojure.walk/postwalk
-     (fn [input]
-       (if (= (swap! position inc) pos)
-         (do
-           ;;(println "WALK" position pos input)
-           (swap! code-str
-                  clojure.string/replace-first
-                  (if (nil? input)
-                    "nil"
-                    (print-str input))
-                  (if marked?
-                    (clojure.string/re-quote-replacement (print-str "?" value))
-                    (print-str value))))
-         input))
-     ;; parse the string and
-     ;; walk only the body of the function
-     (nth (read-string @code-str) body-pos))
+                value)
+        parsed-code (read-string @code-str)]
+    (if (> (count parsed-code) body-pos)
+      (clojure.walk/postwalk
+       (fn [input]
+         (if (= (swap! position inc) pos)
+           (do
+             ;;(println "WALK" position pos input)
+             (swap! code-str
+                    clojure.string/replace-first
+                    (if (nil? input)
+                      "nil"
+                      (print-str input))
+                    (if marked?
+                      (clojure.string/re-quote-replacement (print-str "?" value))
+                      (print-str value))))
+           input))
+       ;; parse the string and
+       ;; walk only the body of the function
+       (nth parsed-code body-pos))
+      (println "ERROR: parsed code: " @code-str " body-pos: " body-pos))
     @code-str))
 
 
-(defn selfmod-cb [editor marked? name pos value 
+(defn selfmod-cb [^RSyntaxTextArea editor marked? name pos value 
                   & { :keys [body-pos]
                      :or {body-pos 3}}]
   (let [;; find target function by name
-        target (.indexOf (seesaw.core/text editor)
-                         name)
+        target (.indexOf ^String (seesaw.core/text editor)
+                         ^String name)
         ;; save the old text
         old-text (seesaw.core/text editor)]
     (when (not= target -1) ;; if a target is found
       ;; get the region of the target function in the string
-      (when-let [bounds (if-let [region
-                                 (frankentone.gui.editor-utils/get-region-boundaries
-                                  editor target)]
-                          region
-                          (frankentone.gui.editor-utils/get-line-boundaries
-                           editor target))]
-        (let [[start end] bounds
-              ;; save old caret position and selection to restore it later
+      (when-let [[start end] (if-let [region
+                                      (frankentone.gui.editor-utils/get-region-boundaries
+                                       editor target)]
+                               region
+                               (frankentone.gui.editor-utils/get-line-boundaries
+                                editor target))]
+        (let [;; save old caret position and selection to restore it later
               old-caret (.getCaretPosition editor)
               old-selection (seesaw.core/selection editor)]
           ;; only change if caret isn't inside the function to be changed
