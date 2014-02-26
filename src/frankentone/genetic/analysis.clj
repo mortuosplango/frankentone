@@ -120,7 +120,7 @@
                            (Math/log (Math/abs x)))
                 min-frame  (fl/amin log-frame)
                max-frame (fl/amax log-frame)]
-            (println min-frame max-frame)
+            ;;(println min-frame max-frame)
             (fl/afill!
              [x log-frame]
              (+ O
