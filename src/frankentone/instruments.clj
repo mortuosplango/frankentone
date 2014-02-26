@@ -2,8 +2,7 @@
 ;; https://github.com/digego/extempore/blob/master/libs/core/instruments.xtm
 
 (ns frankentone.instruments
-  (:use frankentone.ugens
-        frankentone.utils)
+  (:use [frankentone ugens dsp utils])
   (:import [java.util.concurrent PriorityBlockingQueue]
            [java.lang Comparable]))
 
@@ -22,7 +21,7 @@
              (.scheduled-time ^InstNote obj))))
 
 
-(defprotocol PInstrument
+(defprotocol PInstrument2
   "An Instrument"
   (clear [this])
   (clear-queue [this])
@@ -31,6 +30,8 @@
   (play [this time])
   (setFunction [this function])
   (getFunction [this])
+  (setVolume [this vol])
+  (getVolume [this])
   (setNoteKernel [this function])
   (getNoteKernel [this]))
 
@@ -67,14 +68,15 @@
         true))))
 
 
-(deftype CInstrument
+(deftype CInstrument2
     [name
      ^PriorityBlockingQueue note-starts
      notes
+     ^:volatile-mutable ^Double volume
      ^:volatile-mutable function
      ^:volatile-mutable note-kernel]
 
-  PInstrument
+  PInstrument2
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
@@ -103,13 +105,16 @@
                         (fn ^double [time]
                           (let [rel-time (- time start-time)]
                             (if (< rel-time dur)
-                              (kernel rel-time)
+                              (* volume (kernel rel-time))
                               (do
                                 (swap! notes dissoc new-id)
                                 0.0))))]))
       new-id))
   (setFunction [_ in-func] (set! function in-func))
   (getFunction [_] function)
+  (setVolume [_ vol] (when (number? vol)
+                       (set! volume (double vol))))
+  (getVolume [_] volume)
   (setNoteKernel [_ in-func]
     (when (kernel-good? in-func)
       (set! note-kernel in-func)))
@@ -136,15 +141,20 @@
   time and produces sample values."
   ([name note-kernel]
      `(if-let [inst# (get @instruments (keyword '~name))]
-        (do (.setNoteKernel ^CInstrument inst# ~note-kernel)
-            (def ~name (.getFunction ^CInstrument inst#)))
+        (do (.setNoteKernel ^CInstrument2 inst# ~note-kernel)
+            (def ~name (.getFunction ^CInstrument2 inst#)))
         (when (kernel-good? ~note-kernel)
-          (let [instrument# (CInstrument. '~name
-                                         (PriorityBlockingQueue.)
-                                         (atom {})
-                                         nil
-                                         ~note-kernel)
-                fn# (fn ^double [time#] (.play ^CInstrument instrument# time#))]
+          (let [instrument# (CInstrument2. '~name
+                                          ;; note-starts
+                                          (PriorityBlockingQueue.) 
+                                          ;; notes
+                                          (atom {})
+                                          ;; volume
+                                          1.0
+                                          ;; dsp-function
+                                          nil
+                                          ~note-kernel)
+                fn# (fn ^double [time#] (.play ^CInstrument2 instrument# time#))]
             (.setFunction instrument# fn#)
             (def ~name fn#)
             (swap! instruments
@@ -172,4 +182,20 @@
                 (saw3 0.3 (+ freq saw-freq-add3)))
              (line)
              1.0)))))))
+
+(defn instruments->dsp!
+  "Resets the dsp function to play all registered instruments."
+  []
+  (reset-dsp!
+   (let [out (atom 0.0)]
+    (fn [x chan]
+      (if (zero? chan)
+        (reset! out
+                (reduce-kv
+                 (fn [val _ inst]
+                   (+ val
+                      (.play ^CInstrument2 inst x)))
+                 0.0
+                 @instruments))
+        @out)))))
 
