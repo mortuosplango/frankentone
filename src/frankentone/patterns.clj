@@ -1,12 +1,10 @@
 ;; Heavily inspired by Alex McLean's Tidal.
 
 (ns frankentone.patterns
-  (:use frankentone.instruments
-        frankentone.utils
-        frankentone.entropy.selfmod
-        clojure.walk
-        overtone.music.pitch
-        overtone.music.time))
+  (:use [frankentone instruments utils]
+        [frankentone.entropy selfmod]
+        [clojure walk]
+        [overtone.music pitch time]))
 
 
 (declare play-pattern)
@@ -20,7 +18,7 @@
         note-length (* length (/ 1 len))]
     (doall (mapv
             (fn [inst beat]
-              (let [inst-fn (filter #(= (.getFunction (val %)) inst) @instruments)]
+              (let [inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)]
                 (cond
                  (seq inst-fn)
                  (play-note (+ now offset 0.1
@@ -122,7 +120,10 @@
      `(def ~name
         (tPattern.
          #'~name
-         (frankentone.entropy.entropy/fn->fntropy ~name [] ~pattern false (make-selfmod false :body-pos 2))
+         (frankentone.entropy.entropy/fn->fntropy
+          ~(str "defpat " name)
+          [] ~pattern false
+          (make-selfmod false :body-pos 2))
          ~instrument
          ~duration
          (atom (if
