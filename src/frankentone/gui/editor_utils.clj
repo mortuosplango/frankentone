@@ -23,8 +23,9 @@
                                 RSyntaxUtilities
                                 RSyntaxDocument
                                 TokenTypes)
-   (org.fife.ui.rsyntaxtextarea.folding LispFoldParser
-                                        Fold)))
+   ;; (org.fife.ui.rsyntaxtextarea.folding LispFoldParser
+   ;;                                      Fold)
+   ))
 
 
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
@@ -80,18 +81,18 @@
         painter (ChangeableHighlightPainter. (color "#aaddff" 128))
         red-painter (ChangeableHighlightPainter. (color "#ffaaaa" 128))
         hl (atom nil)]
-    (fn [e]
-      (invoke-later
-       (when @hl
-         (.removeHighlight highlighter @hl))
-       (when-let [new-hl (get-context editor-tab)]
-         (reset! hl
-                 (.addHighlight highlighter
-                                (first new-hl)
-                                (second new-hl)
-                                (if (last new-hl)
-                                  painter
-                                  red-painter))))))))
+    (seesaw.invoke/signaller
+     [e]
+     (when @hl
+       (.removeHighlight highlighter @hl))
+     (when-let [new-hl (get-context editor-tab)]
+       (reset! hl
+               (.addHighlight highlighter
+                              (first new-hl)
+                              (second new-hl)
+                              (if (last new-hl)
+                                painter
+                                red-painter)))))))
 
 
 (defn make-editor-tab
@@ -101,7 +102,7 @@
                     :syntax :clojure
                     :tab-size 2)]
     (pimp-editor-keymap editor-tab)
-    (.setCodeFoldingEnabled editor-tab true)
+    ;;(.setCodeFoldingEnabled editor-tab true)
     (listen editor-tab
             #{:caret-update}
             (make-context-highlighter editor-tab))
@@ -117,23 +118,6 @@
        (let [v# ~@body]
          (vector (str s#)
                  v#)))))
-
-
-
-(defn get-region-boundaries [^RSyntaxTextArea editor pos]
-  ;; as the fold manager doesn't reparse on every keystroke, reparse
-  ;; the file every time to ensure correct boundaries
-  (.reparse (.getFoldManager editor))
-  (when-let [region (.getDeepestFoldContaining
-                     (.getFoldManager editor)
-                     pos)]
-    ;;(println region)
-    (let [region (loop [fold region]
-                         (if (.getParent fold)
-                           (recur (.getParent fold))
-                           fold))]
-      (list (.getStartOffset ^Fold region)
-            (min (inc (.getEndOffset ^Fold region)) (count (text editor)))))))
 
 
 (defn get-line-boundaries [^RSyntaxTextArea editor pos]
@@ -179,83 +163,139 @@
        token)))
 
 
+(defn- closing-brak? [x] (or (= x \))
+                             (= x \})
+                             (= x \])))
+(defn- opening-brak? [x] (or (= x \()
+                             (= x \[)
+                             (= x \{)))
+(defn- get-opposite [x] (case x
+                          \( \)
+                          \{ \}
+                          \[ \]
+                          \) \(
+                          \} \{
+                          \] \[))
+
 (defn get-context 
   "Returns a list of the offsets of the bracket pair the caret is in
   and true if the brackets match. Returns nil if no matching brackets
   were found.
 
   Limitations: Doesn't ignore comments."
-  [^RSyntaxTextArea editor]
-  (let [
-        document ^RSyntaxDocument (.getDocument editor)
-        len-text (count (text editor))
-        closing-brak? #(or (= % \))
-                           (= % \})
-                           (= % \]))
-        opening-brak? #(or (= % \()
-                           (= % \[)
-                           (= % \{))
-        get-opposite #(case %
-                           \( \)
-                           \{ \}
-                           \[ \]
-                           \) \(
-                           \} \{
-                           \] \[)
-        position (let [pos (max 0 (dec (config editor :caret-position)))]
-                   (if (closing-brak? (.charAt document pos))
-                     pos
-                     (inc pos))) ;(max 0 (dec))
+  ([^RSyntaxTextArea editor]
+     (get-context editor (config editor :caret-position)))
+  ([^RSyntaxTextArea editor caret-position]
+     (get-context editor caret-position caret-position))
+  ([^RSyntaxTextArea editor start end]
+     (let [
+           document ^RSyntaxDocument (.getDocument editor)
+           len-text (count (text editor))
+           position (let [pos (max 0 (dec start))]
+                      (if (closing-brak? (.charAt document pos))
+                        pos
+                        (inc pos)))    ;(max 0 (dec))
+           opening-brak
+           (loop [pos (max 0 (dec start))
+                  lvl (list)]
+             (when
+                 (>= pos 0)
+               (let [to-test (.charAt document pos)]
+                 (cond
+                  (and (seq lvl)
+                       (= ^char (first lvl) to-test))
+                  (recur (dec pos)
+                         (rest lvl))
 
-        opening-brak
-        (loop [pos (max 0 (dec position))
-               lvl (list)]
-          (when
-              (>= pos 0)
-            (let [to-test (.charAt document pos)]
-              (cond
-               (and (seq lvl)
-                    (= (first lvl) to-test))
-               (recur (dec pos)
-                      (rest lvl))
-               (closing-brak? to-test)
-               (recur (dec pos)
-                      (conj lvl (get-opposite to-test)))
-               (and (opening-brak? to-test)
-                    (empty? lvl))
-               (list pos to-test)
-               :default
-               (recur (dec pos)
-                      lvl)))))]
-    
-    (when opening-brak 
-      (let [closing (get-opposite (second opening-brak))
-            closing-brak
-            (loop [pos position
-                   lvl (list)]
-              (when
-                  (< pos len-text)
-                (let [to-test (.charAt document pos)]
-                  (cond
-                   (and (seq lvl)
-                        (= (first lvl) to-test))
-                   (recur (inc pos)
-                          (rest lvl))
-                   (opening-brak? to-test)
-                   (recur (inc pos)
-                          (conj lvl (get-opposite to-test)))
-                   (and (closing-brak? to-test)
-                        (empty? lvl))
-                   (list pos to-test (= closing to-test))
-                   :default
-                   (recur (inc pos)
-                          lvl)))))]
-        
-        (when closing-brak
-          (list
-           (first opening-brak)
-           (min len-text (inc (first closing-brak)))
-           (last closing-brak)))))))
+                  (closing-brak? to-test)
+                  (recur (dec pos)
+                         (conj lvl (get-opposite to-test)))
+                  
+                  (and (opening-brak? to-test)
+                       (empty? lvl))
+                  (list pos to-test)
+
+                  :default
+                  (recur (dec pos) lvl)))))]
+       
+       (when opening-brak 
+         (let [closing (get-opposite (second opening-brak))
+               closing-brak
+               (loop [pos end
+                      lvl (list)]
+                 (when
+                     (< pos len-text)
+                   (let [to-test (.charAt document pos)]
+                     (cond
+                      (and (seq lvl)
+                           (= ^char (first lvl) to-test))
+                      (recur (inc pos)
+                             (rest lvl))
+                      
+                      (opening-brak? to-test)
+                      (recur (inc pos)
+                             (conj lvl (get-opposite to-test)))
+                      
+                      (and (closing-brak? to-test)
+                           (empty? lvl))
+                      (list pos to-test (= ^char closing to-test))
+                      
+                      :default
+                      (recur (inc pos) lvl)))))]
+           
+           (when closing-brak
+             [
+              (first opening-brak)
+              (min len-text (inc (first closing-brak)))
+              (last closing-brak)]))))))
+
+
+(comment
+  ;; This version isn't reliable enough as the FoldManager seems to
+  ;; return strange folds if not fully parsed (?)
+ (defn get-region-boundaries [^RSyntaxTextArea editor pos]
+   ;; as the fold manager doesn't reparse on every keystroke, reparse
+   ;; the file every time to ensure correct boundaries
+   (.reparse (.getFoldManager editor))
+   (when-let [region (.getDeepestFoldContaining
+                      (.getFoldManager editor)
+                      pos)]
+     ;;(println region)
+     (let [region (loop [fold region]
+                    (if (.getParent fold)
+                      (recur (.getParent fold))
+                      fold))]
+       (list (.getStartOffset ^Fold region)
+             (min (inc (.getEndOffset ^Fold region)) (count (text editor))))))))
+
+
+(defn get-matching-context
+  "Returns a list of the offsets of the matching bracket pair the
+  caret is in. Returns nil if no matching brackets were found.
+
+  Limitations: Doesn't ignore comments."
+  ([^RSyntaxTextArea editor pos]
+     (get-matching-context editor pos pos))
+  ([^RSyntaxTextArea editor start end]
+     (let [context (get-context editor start end)]
+       (when (and context
+                  (last context))
+         (butlast context)))))
+
+
+(defn get-region-boundaries
+  "Returns the region boundaries for the given caret position.
+
+  Limitations: Doesn't ignore comments and brackets therein."
+  [^RSyntaxTextArea editor pos]
+  (when-let [region (get-matching-context editor pos)]
+    (let [region (loop [fold region]
+                   (let [next-fold (get-matching-context editor (dec (first fold)) (last fold))]
+                     (if (and next-fold
+                              (not= next-fold fold))
+                       (recur next-fold)
+                       fold)))]
+      region)))
 
 
 (defn factory-function?
