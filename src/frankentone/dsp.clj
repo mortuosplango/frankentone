@@ -171,7 +171,7 @@
 
 
 (defn pink-noise!
-  "Resets the dsp-function to white noise."
+  "Resets the dsp-function to pink noise."
   ([] (pink-noise! 0.1))
   ([amp] (reset-dsp! (fn-c [x chan] (* amp (if (zero? chan)
                                              (pink-c)
