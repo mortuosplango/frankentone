@@ -18,7 +18,8 @@
         note-length (* length (/ 1 len))]
     (doall (mapv
             (fn [inst beat]
-              (let [inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)]
+              (let [inst (if (var? inst) @inst inst)
+                    inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)]
                 (cond
                  (seq inst-fn)
                  (play-note (+ now offset 0.1
@@ -85,8 +86,7 @@
 
 (defprotocol Pattern ;; playable?
   (start [this])
-  (stop [this])
-  (gui [this]))
+  (stop [this]))
 
 
 (deftype tPattern
@@ -109,8 +109,7 @@
       (reset! running? true)
       (this (+ (now) *latency*))))
   (stop [this]
-    (reset! running? false))
-  (gui [this]))
+    (reset! running? false)))
 
 
 (defmacro defpat
