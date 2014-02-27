@@ -6,36 +6,43 @@
    (org.fife.ui.rsyntaxtextarea RSyntaxTextArea)))
 
 
+(defn- swap-in-code-str! [code-str input value marked?]
+  (swap! code-str
+         clojure.string/replace-first
+         (if (nil? input)
+           "nil"
+           (print-str input))
+         (if marked?
+           (clojure.string/re-quote-replacement (print-str "?" value))
+           (print-str value))))
+
 (defn swap-val [^RSyntaxTextArea editor marked? start end pos value body-pos]
   (let [code-str (atom (subs
                         (seesaw.core/text editor)
                         start
                         end))
         position (atom 0)
-        value (if (number? value)
+        value (if (float? value) 
                 (scround value 0.001)
                 value)
         parsed-code (read-string @code-str)]
     (if (> (count parsed-code) body-pos)
-      (clojure.walk/postwalk
-       (fn [input]
-         (if (= (swap! position inc) pos)
-           (do
-             ;;(println "WALK" position pos input)
-             (swap! code-str
-                    clojure.string/replace-first
-                    (if (nil? input)
-                      "nil"
-                      (print-str input))
-                    (if marked?
-                      (clojure.string/re-quote-replacement (print-str "?" value))
-                      (print-str value))))
-           input))
-       ;; parse the string and
-       ;; walk only the body of the function
-       (nth parsed-code body-pos))
-      (println "ERROR: parsed code: " @code-str " body-pos: " body-pos))
-    @code-str))
+      (if (zero? pos)
+        (let [input (nth parsed-code body-pos)]
+          (swap-in-code-str! code-str input value marked?))
+        (do
+          (clojure.walk/postwalk
+           (fn [input]
+             (if (= (swap! position inc) pos)
+               (do
+                 ;;(println "WALK" position pos input)
+                 (swap-in-code-str! code-str input value marked?))
+               input))
+           ;; parse the string and
+           ;; walk only the body of the function
+           (nth parsed-code body-pos))
+          @code-str))
+      (println "ERROR: parsed code: " @code-str " body-pos: " body-pos))))
 
 
 (defn selfmod-cb [^RSyntaxTextArea editor marked? name pos value 
