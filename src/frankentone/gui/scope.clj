@@ -2,8 +2,8 @@
   (:use [frankentone dsp])
   (:use [seesaw core graphics color]))
 
-(defn make-paint-scope [^java.nio.FloatBuffer output-l
-                        ^java.nio.FloatBuffer output-r]
+(defn make-paint-scope [^java.nio.HeapFloatBuffer output-l
+                        ^java.nio.HeapFloatBuffer output-r]
   (let [w 256
         h 256
         x-array (int-array (range w))
@@ -19,6 +19,7 @@
     
     (fn [_
         ^java.awt.Graphics2D g]
+      
       (dotimes [i w]
         (aset ^ints y1-array i
               (unchecked-add-int
@@ -33,7 +34,6 @@
       (.drawPolyline g x-array y1-array w)
       (.drawPolyline g x-array y2-array w))))
 
-
 (defn show-scope
   "Show an oscilloscope view. Only one instance is possible at a time."
   []
@@ -41,10 +41,11 @@
                       :background "#DDDDDD"
                       :paint nil)
         set-mcanv (fn [x]
-                    (when-not (nil? x)
+                    (when-not (or (nil? x) (nil? (.getOutputBuffers x)))
                       (.setCallbackFunc x
-                                        (fn [_]
-                                          (invoke-later (repaint! mcanv))))
+                                        (seesaw.invoke/signaller
+                                         []
+                                         (repaint! mcanv)))
                       (config! mcanv :paint (apply make-paint-scope
                                                    (.getOutputBuffers x)))))
         scope-frame (frame 
@@ -58,6 +59,7 @@
     (add-watch audio-client watch-key
                (fn [key ref old-state new-state]
                  (set-mcanv new-state)))
-    (listen scope-frame :window-closing
+    (listen scope-frame :window-closed
             (fn [_] (remove-watch audio-client watch-key)))
     (->  scope-frame pack! show!)))
+

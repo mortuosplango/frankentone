@@ -62,12 +62,13 @@
   ;; The client process() method will then be called for each audio
   ;; buffer. You can return false from this method to stop the server
   ;; processing audio.
-  (process [_ time
+  (process [this time
             inputs
             [output-l output-r] num-frames]
     (when (zero? current-time)
       (set! current-time (* time 1E-9))
-      (set! output-buffers [output-l output-r]))
+      (set! output-buffers [output-l output-r])
+      (future (reset! audio-client this)))
     (hip/dotimes-int [i num-frames]
                      (.put ^FloatBuffer output-l
                            (float (dsp-func current-time 0)))
@@ -106,7 +107,6 @@
     (if (or (nil? @dsp-thread) (not (.isAlive ^Thread @dsp-thread)))
       (do
         (reset! audio-server naudio-server)
-        (reset! audio-client naudio-client)
         (let [thread (Thread. #(.run naudio-server))]
           (.setPriority thread Thread/MAX_PRIORITY)
           (.start thread)
