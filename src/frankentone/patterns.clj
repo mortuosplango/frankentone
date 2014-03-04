@@ -116,16 +116,23 @@
   ([name pattern &{ :keys [duration instrument]
                    :or {duration 2.0
                         instrument :default}}]
-     `(def ~name
-        (tPattern.
-         #'~name
-         (frankentone.entropy.entropy/fn->fntropy
-          ~(str "defpat " name " ")
-          [] ~pattern false
-          (make-selfmod false :body-pos 2))
-         ~instrument
-         ~duration
-         (atom (if
-                   (= (class ~name) tPattern)
-                 @(.running? ~name)
-                 false))))))
+     `(when (try
+              ;; check if pattern works
+              ~pattern
+              (catch Exception e#
+                (println "caught exception:\n"
+                         (.getMessage e#))
+                false))
+        (def ~name
+          (tPattern.
+           #'~name
+           (frankentone.entropy.entropy/fn->fntropy
+            ~(str "defpat " name " ")
+            [] ~pattern false
+            (make-selfmod false :body-pos 2))
+           ~instrument
+           ~duration
+           (atom (if
+                     (= (class ~name) tPattern)
+                   @(.running? ~name)
+                   false)))))))
