@@ -8,15 +8,13 @@
   "Maximum amount of change applied each time an Entropy data type is accessed."
   (atom 2.0))
 
-
 (defn make-real
   "Returns an entropy floating point number."
   ([initial-value]
      (let [value (atom (double initial-value))]
        (fn []
          (swap! value
-                #(let [mutate (rand-int 255)
-                       mutate-amount (inc (rand-int 254))
+                #(let [mutate-amount (inc (rand-int 254))
                        is-negative? (rand-nth [true false])
                        change-amount (if is-negative?
                                        (- 0
