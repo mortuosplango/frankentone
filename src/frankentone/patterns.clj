@@ -120,7 +120,7 @@
         (tPattern.
          #'~name
          (frankentone.entropy.entropy/fn->fntropy
-          ~(str "defpat " name)
+          ~(str "defpat " name " ")
           [] ~pattern false
           (make-selfmod false :body-pos 2))
          ~instrument

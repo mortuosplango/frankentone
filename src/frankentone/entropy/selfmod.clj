@@ -99,12 +99,12 @@
   "Transforms every number, character or string in body into an entropy
   datatype."
   [name args body]
-  `(def ~name (fn->fntropy ~name ~args ~body false (make-selfmod false))))
+  `(def ~name (fn->fntropy ~(str " " name " ") ~args ~body false (make-selfmod false))))
 
 
 (defmacro defnt-sm
   "Transforms every integer or floating point number prefixed with a ?
   in the function body into an entropy datatype."
   [name args body]
-  `(def ~name (fn->fntropy ~name ~args ~body true (make-selfmod true))))
+  `(def ~name (fn->fntropy ~(str " " name " ") ~args ~body true (make-selfmod true))))
 
