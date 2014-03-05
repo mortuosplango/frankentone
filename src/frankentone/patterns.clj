@@ -25,11 +25,11 @@
                  (play-note (+ now offset 0.1
                                (* beat note-length))
                             (key (first inst-fn))
-                            80 0.1 note-length)
+                            440.0 0.1 note-length)
                  (keyword? inst)
                  (play-note (+ now offset 0.1
                                (* beat note-length))
-                            inst 80 0.1 note-length)
+                            inst 440.0 0.1 note-length)
                  (coll? inst)
                  (play-pattern inst note-length
                                (+ offset (* beat note-length))
