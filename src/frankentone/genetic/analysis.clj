@@ -18,6 +18,7 @@
     (.addAllOf fbin (FloatArrayList. (float-array array)))
     (.rms fbin)))
 
+
 (defn windowed-rms 
   "Calculate the root mean square [RMS] value of the given array"
   ^Double [array window-size hop]
@@ -85,13 +86,14 @@
                      (repeat 0.0)
                      buffer))))))
 
+
 (defn get-fft-mags
   "Calculates the fft magnitudes for the given buffer"
   ([buf]
      (get-fft-mags buf 1024 0.5))
   ([buf window-size]
      (get-fft-mags buf window-size 0.5))
-  ([buf window-size hob]
+  ([buf window-size hop]
      (let [fft (FFT. window-size *sample-rate*)
            spectrum (float-array (* 0.5 window-size))]
        (.window fft (HannWindow.))
@@ -103,9 +105,8 @@
                  Float/MIN_VALUE
                  (min Float/MAX_VALUE
                       (.getBand fft i)))))
-             (partition window-size (* hob window-size) (repeat 0.0)
+             (partition window-size (* hop window-size) (repeat 0.0)
                         buf)))))
-
 
 
 (defn get-fft-weights
