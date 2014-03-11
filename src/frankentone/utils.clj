@@ -134,7 +134,7 @@
                                        (= (subs (str (first expr#))
                                                 (- (count (str (first expr#))) 2))
                                           "-c"))
-                                (do (let [symb# (gensym (str (first expr#)))
+                                (do (let [symb# (gensym)
                                           num-args# (some-> (first expr#)
                                                             resolve
                                                             meta
@@ -179,4 +179,7 @@
 
 (defn midi->opo [midi]
   (/ midi 12.0))
+
+(defprotocol PGui
+  (gui [this]))
 
