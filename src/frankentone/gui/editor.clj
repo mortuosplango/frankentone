@@ -41,7 +41,7 @@
          (file (System/getProperty "user.home") ".ftscratch")}))
 
 ;; open standard .ftscratch file
-(when-not (.exists ^File (val (first @open-files)))
+(when-not (.exists (val (first @open-files)))
   (spit (val (first @open-files)) ""))
 
 
@@ -52,7 +52,8 @@
   (tabbed-panel
    :id :tabs
    :placement :top
-   :tabs [ (make-editor-tab (val (first @open-files)))]))
+   :tabs [ (let [f  (val (first @open-files))]
+             (make-editor-tab (.getName f) (.getPath f) f))]))
 
 
 (defn get-active-editor-tab
@@ -75,7 +76,7 @@
 
 (defn get-current-file 
   "Returns the file associated with the currently active editor tab."
-  ^File []
+  []
   (val (find  @open-files
               (.getToolTipTextAt editor-tabs
                                  (.getSelectedIndex editor-tabs)))))
@@ -121,12 +122,14 @@
 (defn select-file [type]
   (choose-file main-panel
                :type type
-               :dir (.getParent (get-current-file))))
+               :dir (if (in-jar? (get-current-file))
+                      (.getParent (file (.getJarFileURL (.openConnection (get-current-file)))))
+                      (.getParent (get-current-file)))))
 
 
 (defn open-file
   "Opens the given file in a new tab or, if the file is already open
-  in the editor, change to the corresponding tab."
+  in the editor, changes to the corresponding tab."
   [^File file]
   (if (get @open-files (.getPath file))
     (do (loop [i 0]                     
@@ -137,8 +140,26 @@
         (status! (.getName file) " already opened. Tab is now selected."))
     (do (swap! open-files assoc (.getPath file) file)
         (add-editor-tab
-         (make-editor-tab file))
+         (make-editor-tab (.getName file) (.getPath file) file))
         (status! "Opened " file "."))))
+
+
+(defn open-file-read-only
+  "Opens the given resource read only in a new tab or, if the resource is already open
+  in the editor, changes to the corresponding tab."
+  [resource]
+  (let [name (last (clojure.string/split (.toString resource) #"/"))]
+   (if (get @open-files (.getPath resource))
+     (do (loop [i 0]                     
+           (if (= (.getToolTipTextAt editor-tabs i) (.getPath resource))
+             (.setSelectedIndex editor-tabs i)
+             (when (< (inc i) (.getTabCount editor-tabs))
+               (recur (inc i)))))
+         (status! name " already opened. Tab is now selected."))
+     (do (swap! open-files assoc (.getPath resource) resource)
+         (add-editor-tab
+          (make-editor-tab name (.getPath resource) resource))
+         (status! "Opened " resource " read-only.")))))
 
 
 (defn eval-string
@@ -160,7 +181,6 @@
                             (println-str (last result))))
                   (scroll! post-buffer :to :bottom))
     result))
-
 
 
 (defn eval-current-line
@@ -187,8 +207,9 @@
                                    symbol "."))
       (text! documentation-buffer result))))
 
-
-;;; all functions prefixed "a-" are actions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; all functions prefixed "a-" are actions ;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defn a-new [e]
   (let [selected ^File (select-file :save)]
@@ -198,7 +219,7 @@
         (swap! open-files assoc (.getPath selected) selected)
         (spit selected "")
         (add-editor-tab
-         (make-editor-tab selected))
+         (make-editor-tab (.getName selected) (.getPath selected) selected))
         (status! "Created a new file.")))))
 
 
@@ -207,9 +228,23 @@
     (open-file selected)))
 
 
+(defn a-save-as [e]
+  (when-let [selected ^File (select-file :save)]
+    (swap! open-files dissoc (.getPath (get-current-file)))
+    (swap! open-files assoc (.getPath selected) selected)
+    (spit selected (text (get-active-editor-tab)))
+    (.setTitleAt editor-tabs (.getSelectedIndex editor-tabs) (.getName selected))
+    (.setToolTipTextAt editor-tabs (.getSelectedIndex editor-tabs)
+                       (.getPath selected))
+    (status! "Wrote " selected ".")))
+
+
 (defn a-save [e]
-  (spit (get-current-file) (text (get-active-editor-tab)))
-  (status! "Wrote " (get-current-file) "."))
+  (if (in-jar? (get-current-file))
+    (a-save-as e)
+    (do
+      (spit (get-current-file) (text (get-active-editor-tab)))
+      (status! "Wrote " (get-current-file) "."))))
 
 
 (defn a-close-tab [e]
@@ -228,17 +263,6 @@
          (.remove editor-tabs (.getSelectedIndex editor-tabs)))))
     (invoke-now
      (alert "Can't close last tab."))))
-
-
-(defn a-save-as [e]
-  (when-let [selected ^File (select-file :save)]
-    (swap! open-files dissoc (.getPath (get-current-file)))
-    (swap! open-files assoc (.getPath selected) selected)
-    (spit selected (text (get-active-editor-tab)))
-    (.setTitleAt editor-tabs (.getSelectedIndex editor-tabs) (.getName selected))
-    (.setToolTipTextAt editor-tabs (.getSelectedIndex editor-tabs)
-                       (.getPath selected))
-    (status! "Wrote " selected ".")))
 
 
 (defn a-exit  [e] (dispose! e))
@@ -297,6 +321,12 @@
   (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool))
 
 
+(defn a-open-file [path e]
+  (if (in-jar? path)
+    (open-file-read-only path)
+    (open-file (file path))))
+
+
 (defn a-open-source [e]
   (let [editor (get-active-editor-tab)
         to-look-up (get-token-at-caret editor -1)]
@@ -304,15 +334,22 @@
       (if-let [v (ns-resolve 'frankentone.live (symbol (.getLexeme to-look-up)))]
         (if-let [filepath (:file (meta v))]
           (let [sourcefile (file filepath)
-                alternative (file (str "src/" filepath))]
+                alternative (file (str "src/" filepath))
+                resource (resource filepath)]
             (if (or (.exists sourcefile) (.exists alternative))
-              (do (if (.exists sourcefile)
-                    (open-file sourcefile)
-                    (open-file alternative))
+              (do
+                (if (.exists sourcefile)
+                    (a-open-file sourcefile nil)
+                    (a-open-file alternative nil))
                   (scroll! editor
                            :to [:line (max 0 (dec (:line (meta v))))]))
-              (status! "Couldn't open source file " sourcefile
-                          " for " (str v) ".")))
+              (if (= (.getScheme (.toURI resource)) "jar")
+                (do
+                  (a-open-file resource nil)
+                  (scroll! editor
+                           :to [:line (max 0 (dec (:line (meta v))))])
+                  (status! "Couldn't open source file " sourcefile
+                           " for " (str v) ".")))))
           (status! "Couldn't find source for " (str v) "."))
         (status! "Couldn't find source for " (.getLexeme to-look-up) ".")))))
 
@@ -326,10 +363,6 @@
                   (not (.type to-look-up))
                   (= (.type to-look-up) TokenTypes/NULL))
       (show-documentation (.getLexeme to-look-up)))))
-
-
-(defn a-open-file [path e]
-  (open-file (file path)))
 
 
 (defn menus []
@@ -451,26 +484,26 @@
                          a-docstring))
              
              (menu :text "Help"
-                   :items (let [expath "src/frankentone/examples/"]
+                   :items (let [expath "examples/"]
                             [(action :handler
                                      (partial a-open-file
-                                              (str expath "getting-started.clj"))
+                                              (clojure.java.io/resource (str expath "getting-started.clj")))
                                      :name "Getting started")
                              (action :handler
                                      (partial a-open-file
-                                              (str expath "instruments.clj"))
+                                              (clojure.java.io/resource (str expath "instruments.clj")))
                                      :name "Example instruments")
                              (action :handler
                                      (partial a-open-file
-                                              (str expath "sampled.clj"))
+                                              (clojure.java.io/resource (str expath "sampled.clj")))
                                      :name "How to use samples")
                              (action :handler
                                      (partial a-open-file
-                                              (str expath "speech.clj"))
+                                              (clojure.java.io/resource (str expath "speech.clj")))
                                      :name "Speech synthesis example")
                              (action :handler
                                      (partial a-open-file
-                                              (str expath "genetic/defgen.clj"))
+                                              (clojure.java.io/resource (str expath "genetic/defgen.clj")))
                                      :name "Genetic programming example")]))])))
 
 

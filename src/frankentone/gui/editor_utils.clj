@@ -22,10 +22,7 @@
                                 RSyntaxTextAreaDefaultInputMap
                                 RSyntaxUtilities
                                 RSyntaxDocument
-                                TokenTypes)
-   ;; (org.fife.ui.rsyntaxtextarea.folding LispFoldParser
-   ;;                                      Fold)
-   ))
+                                TokenTypes)))
 
 
 (defn pimp-editor-keymap [^RSyntaxTextArea editor]
@@ -96,9 +93,9 @@
 
 
 (defn make-editor-tab
-  [^File file]
+  [title tip content]
   (let [editor-tab (rsyntax/text-area
-                    :text file
+                    :text content
                     :syntax :clojure
                     :tab-size 2)]
     (pimp-editor-keymap editor-tab)
@@ -106,8 +103,8 @@
     (listen editor-tab
             #{:caret-update}
             (make-context-highlighter editor-tab))
-    {:title (.getName file)
-     :tip (.getPath file)
+    {:title title
+     :tip tip
      :content  (RTextScrollPane. editor-tab)}))
 
 
@@ -312,3 +309,8 @@
      (and (> (count doc) len)
           (= (subs doc 0 len) to-compare)))))
 
+
+(defn in-jar?
+  "Tests if the given resource or file is located inside a jar archive."
+  [resource]
+  (= (.getScheme (.toURI resource)) "jar"))
