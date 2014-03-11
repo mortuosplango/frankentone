@@ -64,6 +64,13 @@
    ["Median error" "Best error"])
   (incanter.core/view xy))
 
+(let [data (vec (frequencies (repeatedly 100000 #(scround (/ (rand-nth [-2.0 2.0]) (inc (rand-int 254))) 0.01))))]
+  (incanter.core/view
+   (chrt/xy-plot
+    (mapv first data)
+    (mapv second data))))
+defgen
+
 
 (let [xy (chrt/xy-plot nil nil
                        :x-label "Generation"

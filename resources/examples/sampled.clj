@@ -20,5 +20,7 @@
                   (aget ^doubles samp
                         (* *sample-rate* (- len (mod x len))))))))
 
+(silence!)
+
 (start-dsp)
 (stop-dsp)

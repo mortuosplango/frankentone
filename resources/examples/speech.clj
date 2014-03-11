@@ -28,6 +28,9 @@
        (reset! samp (speak x))
        @samp))))
 
+;; or use instruments->dsp! to play all instruments
+(instruments->dsp!)
+
 ;; start the dsp process
 (start-dsp)
 
@@ -61,7 +64,21 @@
   (let [next-t (+ t 2000)]
     (apply-at next-t  #'pat [next-t])))
 
-
+;; stop the pattern
 (defn pat [_])
+
+
+;; use defpat
+(instruments->dsp!)
+
+(defpat pat77 ["hello" "how" "are" "you?" :| 
+							 bd - - hh - - bd - :|
+							 (repeat 2 [- - - sn])] :instrument :speak)
+
+;; start the pattern
+(start pat77)
+
+;; stop it again
+(stop pat77)
 
 (stop-dsp)
