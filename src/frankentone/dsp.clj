@@ -71,9 +71,9 @@
       (future (reset! audio-client this)))
     (hip/dotimes-int [i num-frames]
                      (.put ^FloatBuffer output-l
-                           (float (dsp-func current-time 0)))
+                           (float (hardclip (dsp-func current-time 0))))
                      (.put ^FloatBuffer output-r
-                           (float (dsp-func current-time 1)))
+                           (float (hardclip (dsp-func current-time 1))))
                      (set! current-time (+ current-time time-step)))
     (when callback-fn
       (callback-fn))
