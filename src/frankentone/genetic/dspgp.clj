@@ -32,6 +32,8 @@
   (+ 1.0 (* (pmod phase (pd 1.0 freq)) -2.0 freq)))
 
 
+(def default-population-size (atom 300))
+
 (defn flerp
   "Calculates a number between two numbers at a specific increment. The
   amt parameter is the amount to interpolate between the two values
@@ -294,7 +296,7 @@
                           :body-pos 4)
                          ~(str "defgen " name " ") 0)
          first-gen# (next-generation
-                     300
+                     @default-population-size
                      (memoize
                       (partial error-fn
                                ref-map#
@@ -341,7 +343,7 @@
                           :body-pos 4)
                          ~(str "defgen+ugens " name " ") 0)
          first-gen# (next-generation
-                     300
+                     @default-population-size
                      (memoize
                       (partial error-fn
                                ref-map#
