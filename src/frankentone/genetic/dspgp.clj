@@ -3,7 +3,7 @@
         [frankentone utils ugens dsp instruments patterns])
   (:require [hiphip.double :as dbl]
             [hiphip.float :as fl]
-            [seesaw.core :as ss])
+            [seesaw.core :as sc])
   (:require [incanter core stats]
             [incanter.charts :as chrt]))
 
@@ -230,7 +230,30 @@
      selfmod-cb-fn
      pg->inst-fn]
   PGui
-  (gui [this])
+  (gui [this]
+    (let [tabs (sc/tabbed-panel)
+          update-fn (fn [key ref old-state new-state]
+                      (.addTab tabs
+                               (str (:generation @e-state))
+                               (sc/scrollable
+                                (sc/table :model [:columns [:individual
+                                                            {:key :error :text "error" :class java.lang.Double}]
+                                                  :rows (mapv
+                                                         (fn [i e] {:individual (print-str i) :error e})
+                                                         (:population new-state)
+                                                         (:errors new-state))
+                                                  ])))
+                      )
+          gui-frame (sc/frame :title instname
+                              :content (sc/scrollable tabs))]
+      (add-watch e-state
+                 :gui
+                 update-fn)
+      (update-fn nil nil nil @e-state)
+      (sc/listen gui-frame :window-closed
+              (fn [_] (remove-watch e-state :gui)))
+      (-> gui-frame
+          sc/pack! sc/show!)))
   PEvolution
   (next-gen [this]
     (println instname "[~] calculating next generation")
