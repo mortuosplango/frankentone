@@ -13,7 +13,7 @@
 (def || :|)
 
 
-(defn- do-play-pattern [coll length offset instrument now]
+(defn- do-play-pattern [coll length offset default-instrument now default-amp default-pitch]
   (let [len (count coll)
         note-length (* length (/ 1 len))]
     (doall (mapv
@@ -25,24 +25,74 @@
                  (play-note (+ now offset 0.1
                                (* beat note-length))
                             (key (first inst-fn))
-                            440.0 0.1 note-length)
+                            440.0 default-amp note-length)
                  (keyword? inst)
                  (play-note (+ now offset 0.1
                                (* beat note-length))
-                            inst 440.0 0.1 note-length)
+                            inst 440.0 default-amp note-length)
                  (coll? inst)
-                 (play-pattern inst note-length
-                               (+ offset (* beat note-length))
-                               instrument
-                               now)
+                 ;; if event-style map
+                 
+                 (if (some #(contains? inst %)
+                           [:inst :freq :pitch :amp :sustain])
+                   ;; ignore unknown keys
+                   (let [inst (into {} (map #(when-let [v (get inst %)]
+                                               {% v}) [:inst :freq :pitch :amp :sustain]))]
+                    ;; if map contains seqs
+                    ;; split the map into submaps
+                    (if (some #(coll? (get inst %)) [:inst :freq :pitch :amp :sustain])
+                      (let [;; look for the longest list
+                            max-len (-> (sort-by (comp count val) >
+                                                 (into {}
+                                                       (filter (comp coll? val) inst)))
+                                        first val count)]
+                        (play-pattern
+                         (map (fn [pos]
+                                (into {}
+                                      (map (fn [key]
+                                             (let [v (get inst key)]
+                                               (if v
+                                                 {key (if (coll? v)
+                                                        ;; cycle through the others
+                                                        (nth (cycle v)
+                                                             pos)
+                                                        v)})))
+                                           [:inst :freq :pitch :amp :sustain]))) (range max-len))
+                        
+                         note-length
+                         (+ offset (* beat note-length))
+                         default-instrument
+                         now default-amp default-pitch))
+                      ;; play only if the values of everything except
+                      ;; :inst is a number or a string
+                      (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
+                                (play-note (+ now offset 0.1
+                                              (* beat note-length))
+                                           (if (contains? inst :inst)
+                                             (:inst inst)
+                                             default-instrument)
+                                           (cond
+                                            (contains? inst :pitch) (midi->hz (:pitch inst))
+                                            (contains? inst :freq) (:freq inst)
+                                            :default default-pitch)
+                                           (if (contains? inst :amp)
+                                             (:amp inst)
+                                             default-amp)
+                                           (if (contains? inst :sustain)
+                                             (:sustain inst)
+                                             note-length)))))
+                   (play-pattern inst note-length
+                                 (+ offset (* beat note-length))
+                                 default-instrument
+                                 now default-amp default-pitch))
                  (number? inst)
                  (play-note (+ now offset 0.1
                                (* beat note-length))
-                            instrument (midi->hz inst) 0.2 note-length)
+                            default-instrument (midi->hz inst) default-amp note-length)
                  (string? inst)
                  (play-note (+ now offset 0.1
                                (* beat note-length))
-                            instrument inst 0.2 note-length)
+                            default-instrument inst default-amp note-length)
                  )))
             coll (range len)))))
 
@@ -73,10 +123,13 @@
      (play-pattern coll length 0.0))
   ([coll length offset]
      (play-pattern coll length offset :default))
-  ([coll length offset instrument]
-     (play-pattern coll length offset instrument (nows)))
-  ([coll length offset instrument now]
-     (doall (mapv #(do-play-pattern % length offset instrument now)
+  ([coll length offset default-instrument]
+     (play-pattern coll length offset default-instrument (nows)))
+  ([coll length offset default-instrument now]
+     (play-pattern coll length offset default-instrument now 0.1 440.0))
+  ([coll length offset default-instrument now default-amp default-pitch]
+     (doall (mapv #(do-play-pattern % length offset default-instrument now
+                                     default-amp default-pitch)
                   (remove #(= (first %) :|)
                           (partition-by #(= % :|)
                                         (if (set? coll)
@@ -99,7 +152,7 @@
   (invoke [this t]
     (play-pattern (pattern-fn)
                   duration *latency* instrument)
-    (println pat-name)
+    ;; (println pat-name)
     (when @running?
      (let [next-t (+ t (* duration 1000))]
        (apply-at next-t pat-name [next-t]))))
