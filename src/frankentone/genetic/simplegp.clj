@@ -15,8 +15,8 @@
    { :fn 'mul-sin :arity 2 }
    { :fn 'mul-cos :arity 2 }
    { :fn 'mul-tanh :arity 2 }
-   ;;{ :fn 'rrand :arity 1 }
-   ;;{ :fn 'rrand :arity 2 }
+   { :fn 'rrand :arity 1 }
+   { :fn 'rrand :arity 2 }
    { :fn '+ :arity 2 }
    { :fn '+ :arity 3 }
    { :fn '- :arity 2 }
@@ -272,37 +272,40 @@
   ([popsize error-fn & { :keys  [mutation-rate crossover-rate clone-rate
                                  vary-rate random-code-rate
                                  functions terminals logfile seed]
-                        :or   {mutation-rate 0.35
+                        :or   {mutation-rate 0.40
                                crossover-rate 0.25
-                               clone-rate 0.23
+                               clone-rate 0.18
                                vary-rate 0.13
                                random-code-rate 0.04
                                functions random-functions
                                terminals random-terminals}}]
      (println "Starting evolution...")
-     (let [start-time (nows)
-           generation 0
-           [errors population] (sort-by-error
-                                (if (nil? seed)
-                                  (repeatedly popsize #(random-code 2))
-                                  ;; seed the initial population
-                                  (concat
-                                   (repeatedly (* popsize 0.75) #(random-code 2))
-                                   (repeat (* popsize 0.25) seed))) error-fn)]
-       (EvolutionaryState. mutation-rate
-                           crossover-rate
-                           clone-rate
-                           vary-rate
-                           random-code-rate
-                           functions 
-                           terminals
-                           logfile
-                           popsize
-                           error-fn
-                           population
-                           errors
-                           generation
-                           start-time))))
+(binding [random-functions functions
+          random-terminals terminals]
+ (let [start-time (nows)
+       generation 0
+       [errors population]
+       (sort-by-error
+        (if (nil? seed)
+          (repeatedly popsize #(random-code 2))
+          ;; seed the initial population
+          (concat
+           (repeatedly (* popsize 0.75) #(random-code 2))
+           (repeat (* popsize 0.25) seed))) error-fn)]
+   (EvolutionaryState. mutation-rate
+                       crossover-rate
+                       clone-rate
+                       vary-rate
+                       random-code-rate
+                       functions 
+                       terminals
+                       logfile
+                       popsize
+                       error-fn
+                       population
+                       errors
+                       generation
+                       start-time)))))
 
 
 (defn evolve

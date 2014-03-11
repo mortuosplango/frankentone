@@ -2,7 +2,10 @@
   (:use [frankentone.genetic analysis simplegp simplegp-functions utils mfcc]
         [frankentone utils ugens dsp instruments patterns])
   (:require [hiphip.double :as dbl]
-            [hiphip.float :as fl]))
+            [hiphip.float :as fl]
+            [seesaw.core :as ss])
+  (:require [incanter core stats]
+            [incanter.charts :as chrt]))
 
 
 (defn bset!
@@ -25,12 +28,27 @@
   wrapped."
   ^double [x] (hiphip.double/aget buffer (* (pmod x 1.0) (dec *sample-rate*))))
 
+(defn plfsaw [freq phase] 
+  (+ 1.0 (* (pmod phase (pd 1.0 freq)) -2.0 freq)))
+
+
+(defn flerp
+  "Calculates a number between two numbers at a specific increment. The
+  amt parameter is the amount to interpolate between the two values
+  where 0.0 equal to the first point, 0.1 is very near the first
+  point, 0.5 is half-way in between, etc. The lerp function is
+  convenient for creating motion along a straight path and for drawing
+  dotted lines."
+  [start end amt]
+  (+ (* (- end start) amt) start))
+
 
 (def ^:dynamic dsp-terminals
   (concat random-terminals
            '('prev
              'TAU
              (exp-rand 20.0 20000.0)
+             (exp-rand 20.0 2000.0)
              (exp-rand 1.0 30.0)
              '*sample-rate*)))
 
@@ -39,6 +57,43 @@
   (conj random-functions
         { :fn 'bset! :arity 2 }
         { :fn 'bget :arity 1 }))
+
+
+(def ^:dynamic dsp-functions+ugens
+  (list
+   { :fn 'sin :arity 1 }
+   { :fn 'cos :arity 1 }
+   { :fn 'tanh :arity 1 }
+   { :fn 'rrand :arity 1 }
+   { :fn 'rrand :arity 2 }
+   { :fn '+ :arity 2 }
+   { :fn '+ :arity 3 }
+   { :fn '- :arity 1 }
+   { :fn '- :arity 2 }
+   { :fn '* :arity 2 }
+   { :fn '* :arity 3 }
+   { :fn 'pmod :arity 2 }
+   { :fn 'pd :arity 2 }
+   { :fn 'pround :arity 2 }
+   { :fn 'max :arity 2 }
+   { :fn 'min :arity 2 }
+   { :fn 'mean :arity 2 }
+   { :fn 'if>0 :arity 3 }
+   { :fn 'if<0 :arity 3 }
+   { :fn 'frankentone.ugens/hardclip :arity 1 }
+   { :fn 'frankentone.ugens/lpf-c :arity 3 }
+   { :fn 'frankentone.ugens/bpf-c :arity 3 }
+   { :fn 'frankentone.ugens/apf-c :arity 3 }
+   { :fn 'frankentone.ugens/hpf-c :arity 3 }
+   { :fn 'frankentone.ugens/pink-c :arity 0 }
+   { :fn 'frankentone.ugens/line-c :arity 3 }
+   { :fn 'frankentone.ugens/asr-c :arity 4 }
+   { :fn 'frankentone.ugens/delay-c :arity 4}
+   { :fn 'frankentone.ugens/impulse-c :arity 3 }
+   { :fn 'frankentone.ugens/pulsedpw-c :arity 3 }
+   { :fn 'frankentone.ugens/sine :arity 2 }
+   { :fn 'flerp :arity 3 }
+   { :fn 'plfsaw :arity 2 }))
 
 
 (defn error-fn
@@ -167,37 +222,33 @@
   (stop-auto [this]))
 
 
-(deftype AudioEvolution2
+(deftype AudioEvolution
     [instname
      target
      e-state
      auto?
-     selfmod-cb-fn]
+     selfmod-cb-fn
+     pg->inst-fn]
+  PGui
+  (gui [this])
   PEvolution
   (next-gen [this]
     (println instname "[~] calculating next generation")
     (future (next-gen- this)))
   (next-gen- [this]
-    (let [instfn
-          (binding [buffer (double-array *sample-rate* 0.0)]
-            (let [best (first (:population
-                               (swap! e-state next-generation)))
-                  val-func (program->fn best)
-                  prev-samp (atom 0.0)]
-              (selfmod-cb-fn best)
-              (fn ^Double [x]
-                (swap! prev-samp #(val-func x %)))))
+    (let [best (first (:population
+                             (swap! e-state next-generation)))
           len (* (count (:samples target)) sample-dur)]
+      (selfmod-cb-fn best)
       (when-let [inst (get @instruments (keyword instname))]
         (setNoteKernel inst
-                        (fn [freq amp dur]
-                          (fn ^double [x]
-                            (if (< x len)
-                              (* amp (instfn x))
-                              0.0)))))))
+                       (pg->inst-fn best len)))
+      (println instname "[~] generation " (:generation @e-state) " done")
+      (println instname "[~] best programme: " best)
+      (println instname "[~] best error: " (first (:error @e-state)))))
   (start-auto [this & { :keys [delay] :or {delay 1000}}]
+    (println instname "[~] starting auto evolution")
     (future
-      (println instname "[~] starting auto evolution")
       (reset! auto? true)
       (while @auto?
         (next-gen- this)
@@ -218,7 +269,7 @@
                          (frankentone.entropy.selfmod/make-selfmod
                           false
                           :body-pos 4)
-                         ~(str "defgen " name) 1)
+                         ~(str "defgen " name " ") 0)
          first-gen# (next-generation
                      300
                      (memoize
@@ -227,15 +278,76 @@
                                [:rms :mfcc]))
                      :seed '~seed
                      :terminals dsp-terminals
-                     :functions dsp-functions)]
+                     :functions dsp-functions)
+         pg->inst-fn# (fn [best# len#]
+                          (fn [freq# amp# dur#]
+                            (binding [buffer (double-array *sample-rate* 0.0)]
+                             (let [prev-samp# (atom 0.0)
+                                   val-func# (program->fn best#)
+                                   mul-x# (/ freq# 440.0)]
+                               (fn ^double [x#]
+                                 (if (< (* mul-x# x#) len#)
+                                   (* amp# (swap! prev-samp# #(val-func# (* mul-x# x#) %)))
+                                   0.0))))))]
      (selfmod-cb-fn# (first (:population first-gen#)))
      (when-not (contains? @instruments (keyword ~instname))
        (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
                    (symbol ~instname) 'definst)))
+     (when-let [inst# (get @instruments (keyword ~instname))]
+       (setNoteKernel inst#
+                      (pg->inst-fn# (first (:population first-gen#)) (* (count (:samples ref-map#)) sample-dur))))
      (def ~name
-       (AudioEvolution2. ~instname
+       (AudioEvolution. ~instname
                         ref-map#
                         (atom first-gen#)
                         (atom false)
-                        selfmod-cb-fn#))))
+                        selfmod-cb-fn#
+                        pg->inst-fn#))))
 
+
+(defmacro defgen+ugens
+  "Convenience macro to define and control a genetic programming
+  process.
+
+  If the seed argument is nil, no seed is used."
+  [name instname target seed]
+  `(let [ref-map# (get-reference-map ~target)
+         selfmod-cb-fn# (partial
+                         (frankentone.entropy.selfmod/make-selfmod
+                          false
+                          :body-pos 4)
+                         ~(str "defgen+ugens " name " ") 0)
+         first-gen# (next-generation
+                     300
+                     (memoize
+                      (partial error-fn
+                               ref-map#
+                               [:rms :mfcc]
+                               program->fn-c))
+                     :seed '~seed
+                     :terminals dsp-terminals
+                     :functions dsp-functions+ugens
+                     )
+         pg->inst-fn# (fn [best# len#]
+                          (fn [freq# amp# dur#]
+                            (let [prev-samp# (atom 0.0)
+                                  val-func# (program->fn-c best#)
+                                  mul-x# (/ freq# 440.0)]
+                              (fn ^double [x#]
+                                (if (< (* mul-x# x#) len#)
+                                  (* amp# (swap! prev-samp# #(val-func# (* mul-x# x#) %)))
+                                  0.0)))))]
+     (selfmod-cb-fn# (first (:population first-gen#)))
+     (when-not (contains? @instruments (keyword ~instname))
+       (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
+                   (symbol ~instname) 'definst)))
+     (when-let [inst# (get @instruments (keyword ~instname))]
+       (setNoteKernel inst#
+                      (pg->inst-fn# (first (:population first-gen#)) (* (count (:samples ref-map#)) sample-dur))))
+     (def ~name
+       (AudioEvolution. ~instname
+                        ref-map#
+                        (atom first-gen#)
+                        (atom false)
+                        selfmod-cb-fn#
+                        pg->inst-fn#))))

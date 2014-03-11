@@ -9,6 +9,16 @@
   [program]
   (eval (list 'fn ^Double '[^Double x ^Double prev] program)))
 
+(defn program->fn-c
+  "Converts a program into a runable function."
+  [program]
+  (try
+    (eval (list 'fn-c ^Double '[^Double x ^Double prev] program))
+    (catch Exception e
+      ;; (println "caught exception:\n"
+      ;;          (.getMessage e))
+      (fn [_ _] 0.0))))
+
 (defn program->dsp!
   "Try to set the given program as dsp function."
   ([program]
