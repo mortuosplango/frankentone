@@ -32,55 +32,55 @@
                             inst 440.0 default-amp note-length)
                  (coll? inst)
                  ;; if event-style map
-                 
-                 (if (some #(contains? inst %)
-                           [:inst :freq :pitch :amp :sustain])
+                 (if (and
+                      (map? inst)
+                      (some #(contains? inst %)
+                            [:inst :freq :pitch :amp :sustain]))
                    ;; ignore unknown keys
                    (let [inst (into {} (map #(when-let [v (get inst %)]
                                                {% v}) [:inst :freq :pitch :amp :sustain]))]
-                    ;; if map contains seqs
-                    ;; split the map into submaps
-                    (if (some #(coll? (get inst %)) [:inst :freq :pitch :amp :sustain])
-                      (let [;; look for the longest list
-                            max-len (-> (sort-by (comp count val) >
-                                                 (into {}
-                                                       (filter (comp coll? val) inst)))
-                                        first val count)]
-                        (play-pattern
-                         (map (fn [pos]
-                                (into {}
-                                      (map (fn [key]
-                                             (let [v (get inst key)]
-                                               (if v
-                                                 {key (if (coll? v)
-                                                        ;; cycle through the others
-                                                        (nth (cycle v)
-                                                             pos)
-                                                        v)})))
-                                           [:inst :freq :pitch :amp :sustain]))) (range max-len))
-                        
-                         note-length
-                         (+ offset (* beat note-length))
-                         default-instrument
-                         now default-amp default-pitch))
-                      ;; play only if the values of everything except
-                      ;; :inst is a number or a string
-                      (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
-                                (play-note (+ now offset 0.1
-                                              (* beat note-length))
-                                           (if (contains? inst :inst)
-                                             (:inst inst)
-                                             default-instrument)
-                                           (cond
-                                            (contains? inst :pitch) (midi->hz (:pitch inst))
-                                            (contains? inst :freq) (:freq inst)
-                                            :default default-pitch)
-                                           (if (contains? inst :amp)
-                                             (:amp inst)
-                                             default-amp)
-                                           (if (contains? inst :sustain)
-                                             (:sustain inst)
-                                             note-length)))))
+                     ;; if map contains seqs
+                     ;; split the map into submaps
+                     (if (some #(coll? (get inst %)) [:inst :freq :pitch :amp :sustain])
+                       (let [ ;; look for the longest list
+                             max-len (-> (sort-by (comp count val) >
+                                                  (into {}
+                                                        (filter (comp coll? val) inst)))
+                                         first val count)]
+                         (play-pattern
+                          (map (fn [pos]
+                                 (into {}
+                                       (map (fn [key]
+                                              (let [v (get inst key)]
+                                                (if v
+                                                  {key (if (coll? v)
+                                                         ;; cycle through the others
+                                                         (nth (cycle v)
+                                                              pos)
+                                                         v)})))
+                                            [:inst :freq :pitch :amp :sustain]))) (range max-len))
+                          note-length
+                          (+ offset (* beat note-length))
+                          default-instrument
+                          now default-amp default-pitch))
+                       ;; play only if the values of everything except
+                       ;; :inst is a number or a string
+                       (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
+                         (play-note (+ now offset 0.1
+                                       (* beat note-length))
+                                    (if (contains? inst :inst)
+                                      (:inst inst)
+                                      default-instrument)
+                                    (cond
+                                     (contains? inst :pitch) (midi->hz (:pitch inst))
+                                     (contains? inst :freq) (:freq inst)
+                                     :default default-pitch)
+                                    (if (contains? inst :amp)
+                                      (:amp inst)
+                                      default-amp)
+                                    (if (contains? inst :sustain)
+                                      (:sustain inst)
+                                      note-length)))))
                    (play-pattern inst note-length
                                  (+ offset (* beat note-length))
                                  default-instrument
@@ -129,7 +129,7 @@
      (play-pattern coll length offset default-instrument now 0.1 440.0))
   ([coll length offset default-instrument now default-amp default-pitch]
      (doall (mapv #(do-play-pattern % length offset default-instrument now
-                                     default-amp default-pitch)
+                                    default-amp default-pitch)
                   (remove #(= (first %) :|)
                           (partition-by #(= % :|)
                                         (if (set? coll)
@@ -154,8 +154,8 @@
                   duration *latency* instrument)
     ;; (println pat-name)
     (when @running?
-     (let [next-t (+ t (* duration 1000))]
-       (apply-at next-t pat-name [next-t]))))
+      (let [next-t (+ t (* duration 1000))]
+        (apply-at next-t pat-name [next-t]))))
   Pattern
   (start [this]
     (when-not @running?

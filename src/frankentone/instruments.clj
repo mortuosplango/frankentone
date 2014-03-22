@@ -21,7 +21,7 @@
              (.scheduled-time ^InstNote obj))))
 
 
-(defprotocol PInstrument2
+(defprotocol PInstrument
   "An Instrument"
   (clear [this])
   (clear-queue [this])
@@ -36,7 +36,7 @@
   (getNoteKernel [this]))
 
 
-(defn reduce-instruments ^double [time coll]
+(defn- reduce-notes ^double [time coll]
   (reduce-kv (fn ^double [val _ func] (+ val (func time))) 0.0 coll))
 
 
@@ -68,7 +68,7 @@
         true))))
 
 
-(deftype CInstrument2
+(deftype CInstrument
     [name
      ^PriorityBlockingQueue note-starts
      notes
@@ -76,12 +76,12 @@
      ^:volatile-mutable function
      ^:volatile-mutable note-kernel]
 
-  PInstrument2
+  PInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
   (play ^double [_ current-time] 
-    (reduce-instruments
+    (reduce-notes
      current-time
      (if-not (note-due? note-starts current-time)
        @notes
@@ -141,10 +141,10 @@
   time and produces sample values."
   ([name note-kernel]
      `(if-let [inst# (get @instruments (keyword '~name))]
-        (do (.setNoteKernel ^CInstrument2 inst# ~note-kernel)
-            (def ~name (.getFunction ^CInstrument2 inst#)))
+        (do (.setNoteKernel ^CInstrument inst# ~note-kernel)
+            (def ~name (.getFunction ^CInstrument inst#)))
         (when (kernel-good? ~note-kernel)
-          (let [instrument# (CInstrument2. '~name
+          (let [instrument# (CInstrument. '~name
                                           ;; note-starts
                                           (PriorityBlockingQueue.) 
                                           ;; notes
@@ -154,7 +154,7 @@
                                           ;; dsp-function
                                           nil
                                           ~note-kernel)
-                fn# (fn ^double [time#] (.play ^CInstrument2 instrument# time#))]
+                fn# (fn ^double [time#] (.play ^CInstrument instrument# time#))]
             (.setFunction instrument# fn#)
             (def ~name fn#)
             (swap! instruments
@@ -183,19 +183,28 @@
              (line)
              1.0)))))))
 
+
+(defn reduce-instruments
+  "Convenience function to get the sum of a map of instruments.
+
+E. g. get all instruments' output summed:
+(reduce-instruments @instruments t)
+
+Sum all instruments except the :bd instrument:
+(reduce-instruments (dissoc @instruments :bd) t)
+"
+  [coll t]
+  (reduce-kv
+   (fn [val _ inst]
+     (+ val
+        (.play ^CInstrument inst t)))
+   0.0 coll))
+
+
 (defn instruments->dsp!
   "Resets the dsp function to play all registered instruments."
   []
   (reset-dsp!
-   (let [out (atom 0.0)]
-    (fn [x chan]
-      (if (zero? chan)
-        (reset! out
-                (reduce-kv
-                 (fn [val _ inst]
-                   (+ val
-                      (.play ^CInstrument2 inst x)))
-                 0.0
-                 @instruments))
-        @out)))))
-
+   (dup!
+    (fn [t]
+      (reduce-instruments @instruments t)))))

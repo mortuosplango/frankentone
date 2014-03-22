@@ -158,6 +158,30 @@
         false)))
 
 
+(defn dup!
+  "Takes a function with one argument and produces a function that
+  copies the result of that function to all channels.
+E. g.
+(reset-dsp! (dup! (fn-c [x] (sin-osc-c 0.0 1.0 440.0))))
+
+corresponds to
+
+(reset-dsp!
+ (let [out (atom 0.0)]
+   (fn-c [x chan]
+     (if (zero? chan)
+       (reset! out (sin-osc-c 0.0 1.0 440.0))
+       @out))))
+"
+  [function]
+  (let [out (atom 0.0)]
+    (fn [x chan]
+      (if (zero? chan)
+        (reset! out
+                (function x))
+        (deref out)))))
+
+
 (defn silence!
   "Resets the dsp-function to silence."
   []
@@ -167,7 +191,7 @@
 (defn white-noise!
   "Resets the dsp-function to white noise."
   ([] (white-noise! 0.1))
-  ([amp] (reset-dsp! (fn-c [x chan] (* amp (white-noise-c))))))
+  ([amp] (reset-dsp! (fn [_ _] (* amp (white-noise))))))
 
 
 (defn pink-noise!
