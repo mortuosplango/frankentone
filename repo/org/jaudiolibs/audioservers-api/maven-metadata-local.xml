@@ -1,12 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <metadata>
   <groupId>org.jaudiolibs</groupId>
-  <artifactId>audioservers</artifactId>
+  <artifactId>audioservers-api</artifactId>
   <versioning>
-    <release>120912</release>
     <versions>
-      <version>120912</version>
+      <version>1.1-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20131212114531</lastUpdated>
+    <lastUpdated>20140606221740</lastUpdated>
   </versioning>
 </metadata>

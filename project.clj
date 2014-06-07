@@ -45,17 +45,17 @@ options can be kept under `:disabled`."
   :license {:name "GNU General Public License 3"
             :url "https://www.gnu.org/licenses/gpl.txt"}
   :repositories {"local" ~(str (.toURI (java.io.File. "repo")))}
-  :dependencies [[org.clojure/clojure "1.5.1"]
+  :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojars.wmealing/clj-audio "0.2.0-SNAPSHOT"]
-                 [org.jaudiolibs/audioservers "120912"]
-                 [org.jaudiolibs/audioservers-jack "120912"]
-                 [org.jaudiolibs/audioservers-javasound "120912"]
-                 [hiphip-aot "0.1.1"]
+                 [org.jaudiolibs/audioservers-api "1.1-SNAPSHOT"]
+                 [org.jaudiolibs/audioservers-jack "1.1-SNAPSHOT"]
+                 [org.jaudiolibs/audioservers-javasound "1.1-SNAPSHOT"]
+                 [hiphip-aot "0.1.2"]
                  [seesaw "1.4.4"]
-                 [overtone "0.8.1"]
+                 [overtone "0.9.1"]
                  [org.clojars.jeffsigmon/maryclient "4.3.0"]
                  [ddf.minim "2.1.0"]
-                 [incanter/incanter-core "1.5.4"]
-                 [incanter/incanter-charts "1.5.4"]]
+                 [incanter/incanter-core "1.5.5"]
+                 [incanter/incanter-charts "1.5.5"]]
   :jvm-opts ~(jvm-opts)
   :main frankentone.core)

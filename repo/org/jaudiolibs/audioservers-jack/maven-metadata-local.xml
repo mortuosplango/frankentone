@@ -3,10 +3,9 @@
   <groupId>org.jaudiolibs</groupId>
   <artifactId>audioservers-jack</artifactId>
   <versioning>
-    <release>120912</release>
     <versions>
-      <version>120912</version>
+      <version>1.1-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20131212114559</lastUpdated>
+    <lastUpdated>20140606222004</lastUpdated>
   </versioning>
 </metadata>

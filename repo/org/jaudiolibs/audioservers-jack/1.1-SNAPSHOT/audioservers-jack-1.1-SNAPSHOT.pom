@@ -4,6 +4,6 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jaudiolibs</groupId>
   <artifactId>audioservers-jack</artifactId>
-  <version>120912</version>
+  <version>1.1-SNAPSHOT</version>
   <description>POM was created from install:install-file</description>
 </project>

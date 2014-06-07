@@ -96,10 +96,10 @@
         naudio-server (JavasoundAudioServer/create
                        "" ;; device
                          (AudioConfiguration.
-                          *sample-rate*, ;;sample rate
-                          0,       ;; input channels
-                          *num-channels*,       ;; output channels
-                          *default-buffer-size*   ;;buffer size
+                          (float *sample-rate*)      ;;sample rate
+                          0           ;; input channels
+                          *num-channels* ;; output channels
+                          *default-buffer-size* ;;buffer size
                           true     ;; is buffer size fixed?
                           )    
                          JavasoundAudioServer$TimingMode/Estimated
