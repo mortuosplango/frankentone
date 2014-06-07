@@ -183,3 +183,22 @@
 (defprotocol PGui
   (gui [this]))
 
+
+(defn clump
+  "Wrapper for partition, rounding off any floating point inputs for
+  n, step and pad.
+
+  Returns a lazy sequence of lists of n items each, at offsets step
+  apart. If step is not supplied, defaults to n, i.e. the partitions
+  do not overlap. If a pad collection is supplied, use its elements as
+  necessary to complete last partition upto n items. In case there are
+  not enough padding elements, return a partition with less than n
+  items."
+  {:added "1.0"
+   :static true}
+  ([n coll]
+     (partition (long n) (long n) coll))
+  ([n step coll]
+     (partition (long n) (long step) coll))
+  ([n step pad coll]
+     (partition (long n) (long step) (long pad) coll)))
