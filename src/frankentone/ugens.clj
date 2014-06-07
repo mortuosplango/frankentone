@@ -79,8 +79,8 @@
 
 (defn sine
   "Sine"
-  (^double [freq phase]
-           (Math/sin (* freq TAU phase))))
+  ([freq phase]
+     (Math/sin (* freq TAU phase))))
 
 
 (defn lfsaw [freq phase] 
@@ -90,10 +90,10 @@
    
 (defn hardclip
   "Hard clip"
-  (^double [input]
-           (max -1.0 (min 1.0 input)))
-  (^double [input min-val max-val]
-           (max min-val (min max-val input))))
+  ([input]
+     (max -1.0 (min 1.0 input)))
+  ([input min-val max-val]
+     (max min-val (min max-val input))))
 
 (deftype tOsc
     [^:unsynchronized-mutable ^double phase
