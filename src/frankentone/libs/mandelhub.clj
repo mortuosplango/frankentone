@@ -48,7 +48,7 @@
 
 
 (defn- filter-burst-messages [name id]
-  (when (not= @mandelhub-instance false)
+  (when @mandelhub-instance
     (let [cur-beat (metro-exact-beat mandelclock)
           queue (into {}
                       ;; drop old message ids
@@ -124,7 +124,7 @@
                     :external-tempo tempo})))))))
 
 (defn- add-handler [cmd action]
-  (when (not= @mandelhub-instance false)
+  (when @mandelhub-instance
     (osc-handle (:server @mandelhub-instance)
                 cmd
                 (fn [msg]
@@ -190,7 +190,7 @@
   "To join"
   ([name] (mandelhub-join name 57120))
   ([name port]
-     (if (not @mandelhub-instance)
+     (when-not @mandelhub-instance
        (do
          (reset! mandelhub-instance
                  {:name name
@@ -201,7 +201,7 @@
                   :burst-guard-dict (atom {})
                   })
          (.setBroadcast (.socket (:chan (:mandelhub @mandelhub-instance))) true)
-         (if (not (.getBroadcast (.socket (:chan (:mandelhub @mandelhub-instance)))))
+         (when-not (.getBroadcast (.socket (:chan (:mandelhub @mandelhub-instance))))
            "Couldn't set broadcast flag! Disaster!")
          ;; to become a follower:
          ;; first: /mh/requestPort name, -1, port
@@ -218,7 +218,7 @@
     return))
 
 (defn- send-message-burst [cmd burst-type message]
-  (when (not= @mandelhub-instance false)
+  (when @mandelhub-instance
     (let [burst (if (coll? burst-type)
                   burst-type
                   (burst-type {:time [2 0.25]

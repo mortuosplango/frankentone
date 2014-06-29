@@ -6,7 +6,6 @@
 
 (def TAU (* Math/PI 2))
 
-
 (def ^:dynamic *sample-rate* 44100.0)
 
 (def ^:dynamic *latency* 0.1)
