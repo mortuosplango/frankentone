@@ -8,8 +8,9 @@
             AudioConfiguration
             AudioServer]
            [org.jaudiolibs.audioservers.javasound
-            JavasoundAudioServer
-            JavasoundAudioServer$TimingMode]))
+            JSAudioServer
+            JSAudioServerProvider
+            JSTimingMode]))
 
 
 (defonce dsp-thread (atom nil))
@@ -93,16 +94,14 @@
                        0.0
                        sample-dur
                        nil)
-        naudio-server (JavasoundAudioServer/create
-                       "" ;; device
+        naudio-server (.createServer (JSAudioServerProvider.)
                          (AudioConfiguration.
                           (float *sample-rate*)      ;;sample rate
-                          0           ;; input channels
-                          *num-channels* ;; output channels
+                          0                          ;; input channels
+                          *num-channels*        ;; output channels
                           *default-buffer-size* ;;buffer size
-                          true     ;; is buffer size fixed?
-                          )    
-                         JavasoundAudioServer$TimingMode/Estimated
+                          true ;; is buffer size fixed?
+                          (object-array [JSTimingMode/Estimated]))
                          naudio-client)]
     (if (or (nil? @dsp-thread) (not (.isAlive ^Thread @dsp-thread)))
       (do
@@ -117,8 +116,8 @@
 (defn stop-dsp
   "Stop the dsp engine."
   []
-  (if (and @audio-server (.isActive ^JavasoundAudioServer @audio-server))
-    (.shutdown ^JavasoundAudioServer @audio-server)))
+  (if (and @audio-server (.isActive ^JSAudioServer @audio-server))
+    (.shutdown ^JSAudioServer @audio-server)))
 
 
 (defn kill-dsp
