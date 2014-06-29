@@ -6,7 +6,7 @@
            [java.net DatagramSocket]))
 
 
-(def mandelhub-instance (atom false))
+(defonce mandelhub-instance (atom false))
 
 
 (def ^:dynamic *latency-compensation* 0.005)
@@ -26,7 +26,6 @@
                          :bad-ticks 0}))
 
 
-
 (defn metro-exact-beat
   "Get the current beat as a floating point number."
   [metro]
@@ -39,6 +38,17 @@
      (/ (metro-bpm metro) 60.0))
   ([metro new-bps]
      (metro-bpm metro (* new-bps 60.0))))
+
+
+(defn metro-spb
+  "Get the current seconds per beat (spb)."
+  ([metro]
+     (/ 60.0 (metro-bpm metro))))
+
+
+(defn beat-s
+  "Convert 'b' beats to seconds at the given 'bpm'."
+  [b bpm] (* (/ 60.0 bpm) b))
 
 
 (defn- post-chat [name message]
@@ -69,6 +79,41 @@
                (assoc queue (str id) (+ cur-beat 32)))
               true)))
         true))))
+
+
+(defn- next-message-id []
+  (let [return (:current-message-id @mandelhub-instance)]
+    (swap! mandelhub-instance update-in [:current-message-id] inc)
+    return))
+
+(defn- send-message-burst [cmd burst-type & [message]]
+  (when @mandelhub-instance
+    (let [burst (if (coll? burst-type)
+                  burst-type
+                  (burst-type {:time [2 0.25]
+                               :critical [8 4]
+                               :important [4 2]
+                               :timeCritical [8 0.5]
+                               :relaxed [4 8]}))
+          message-id (float (next-message-id))
+          burst-wait (* 1000 (/ (second burst) (first burst)))]
+      (dotimes [i (first burst)]
+        (if message
+          (osc-send (:mandelhub @mandelhub-instance) cmd
+                    (:name @mandelhub-instance)
+                    message-id message)
+          (osc-send (:mandelhub @mandelhub-instance) cmd
+                    (:name @mandelhub-instance)
+                    message-id))
+        (Thread/sleep burst-wait)))))
+
+
+(defn- send-hello []
+  (send-message-burst "/hello" :relaxed))
+(defn- send-request-hello []
+  (send-message-burst "/requestHello" :relaxed))
+(defn- send-request-sync []
+  (send-message-burst "/requestSync" :critical))
 
 
 (defn- receive-tick
@@ -123,49 +168,51 @@
                     :last-message last-tick-time
                     :external-tempo tempo})))))))
 
+
 (defn- add-handler [cmd action]
   (when @mandelhub-instance
     (osc-handle (:server @mandelhub-instance)
                 cmd
                 (fn [msg]
-                  (let [header {:cmd (first (:args msg))
-                                :name (second (:args msg))
-                                :id (nth (:args msg) 2)}
-                        payload (nthrest (:args msg) 3)]
-                    ;; TODO
-                    )))))
+                  (let [name (first (:args msg))
+                        id (second (:args msg))
+                        payload (nthrest (:args msg) 2)]
+                    (when (filter-burst-messages name id)
+                      (action name id payload)))))))
 
-;; (create-handlers (:server @mandelhub-instance))
 
 (defn- create-handlers [server]
-  ;; /mh/chat name msg-id message
   (let [out *out*]
-    (osc-handle server "/mh/chat"
-                (fn [msg]
+    ;; /mh/chat name msg-id message
+    (add-handler "/mh/chat"
+                 (fn [name id payload]
                   (binding [*out* out]
-                    (when (filter-burst-messages name (second (:args msg)))
-                      (post-chat (first (:args msg)) (last (:args msg)))))))
+                    (post-chat name (first payload)))))
     ;; /mh/shout name msg-id message
-    (osc-handle server "/mh/shout"
-                (fn [msg]
-                  (binding [*out* out]
-                    (when (filter-burst-messages name (second (:args msg)))
-                      (post-shout (first (:args msg)) (last (:args msg)))))))
+    (add-handler "/mh/shout"
+                 (fn [name id payload]
+                   (binding [*out* out]
+                     (post-shout name (first payload)))))
     ;; /mh/hello name msg-id
-    (osc-handle server "/mh/hello"
-                (fn [msg]
-                  ;; TODO
-                  ))
+    (add-handler "/mh/hello"
+                 (fn [name id payload]
+                   (binding [*out* out]
+                     (if (= (:leader @mandelhub-instance)
+                            name)
+                       (println name "is the leader.")
+                       (println name "is following the leader.")))))
     ;; /mh/requestHello name msg-id
-    (osc-handle server "/mh/requestHello"
-                (fn [msg]
-                  ;; TODO
-                  ))
+    (add-handler "/mh/requestHello"
+                 (fn [name id payload]
+                   (when (filter-burst-messages name id)
+                     (send-hello))))
     ;; /mh/takeLead name msg-id
-    (osc-handle server "/mh/takeLead"
-                (fn [msg]
-                  ;; TODO
-                  ))
+    (add-handler "/mh/takeLead"
+                 (fn [name id payload]
+                   (when (filter-burst-messages name id)
+                     (println name "is our new leader!")
+                     (swap! mandelhub-instance
+                            assoc :leader name))))
     ;;  /mh/clock name msg-id clock-serial beats tempo
     (future
       (do (osc-recv server "/mh/clock"
@@ -173,17 +220,14 @@
                       (binding [*out* out]
                         (println "You are now following"
                                  (first (:args msg)))
+                        (swap! mandelhub-instance assoc :leader (first (:args msg)))
                         (metro-start mandelclock (dec (nth (:args msg) 3)))
                         (metro-bar-start mandelclock (dec (/ (nth (:args msg) 3) 4.0)))
                         (metro-bps mandelclock (nth (:args msg) 4)))))
-          (println "test")
-          (osc-handle server "/mh/clock"
-                      (fn [msg]
-                        (binding [*out* out]
-                          (receive-tick
-                           (nth (:args msg) 2)
-                           (nth (:args msg) 3)
-                           (nth (:args msg) 4)))))))))
+          (add-handler "/mh/clock"
+                       (fn [_ _ [serial beat tempo]]
+                         (binding [*out* out]
+                          (receive-tick serial beat tempo))))))))
 
 
 (defn mandelhub-join
@@ -191,48 +235,29 @@
   ([name] (mandelhub-join name 57120))
   ([name port]
      (when-not @mandelhub-instance
-       (do
+       (let [rec-port 57220]
          (reset! mandelhub-instance
                  {:name name
                   :port port
+                  :leader ""
                   :mandelhub (osc-client "255.255.255.255" port false)
                   :current-message-id (rand-int 5000)
-                  :server (osc-server 57224)
+                  :server (osc-server rec-port)
                   :burst-guard-dict (atom {})
                   })
          (.setBroadcast (.socket (:chan (:mandelhub @mandelhub-instance))) true)
          (when-not (.getBroadcast (.socket (:chan (:mandelhub @mandelhub-instance))))
-           "Couldn't set broadcast flag! Disaster!")
+           (println "Couldn't set broadcast flag! Disaster!"))
          ;; to become a follower:
          ;; first: /mh/requestPort name, -1, port
          ;; then: /mh/hello name, 0 (0 can also be a unique id)
          (create-handlers (:server @mandelhub-instance))
-         (osc-send (:mandelhub @mandelhub-instance) "/mh/requestPort" name -1.0 57224.0)
-         (Thread/sleep 50)
-         (osc-send (:mandelhub @mandelhub-instance) "/mh/hello" name 0.0)))))
+         (osc-send (:mandelhub @mandelhub-instance) "/mh/requestPort" name -1.0 (double rec-port))
+         (Thread/sleep 500)
+         (send-hello)
+         (Thread/sleep 250)
+         (send-request-sync)))))
 
-
-(defn- next-message-id []
-  (let [return (:current-message-id @mandelhub-instance)]
-    (swap! mandelhub-instance update-in [:current-message-id] inc)
-    return))
-
-(defn- send-message-burst [cmd burst-type message]
-  (when @mandelhub-instance
-    (let [burst (if (coll? burst-type)
-                  burst-type
-                  (burst-type {:time [2 0.25]
-                               :critical [8 4]
-                               :important [4 2]
-                               :timeCritical [8 0.5]
-                               :relaxed [4 8]}))
-          message-id (float (next-message-id))
-          burst-wait (* 1000 (/ (second burst) (first burst)))]
-      (dotimes [i (first burst)]
-        (osc-send (:mandelhub @mandelhub-instance) cmd
-                  (:name @mandelhub-instance)
-                  message-id message)
-        (Thread/sleep burst-wait)))))
 
 (defn mandelhub-chat [message]
   (future (send-message-burst "/mh/chat" :important message)))
@@ -240,3 +265,7 @@
 (defn mandelhub-shout [message]
   (future (send-message-burst "/mh/shout" :important message)))
 
+;; (mandelhub-join "holger")
+;; (mandelhub-chat "hello")
+;; (mandelhub-shout "hello")
+;; (create-handlers (:server @mandelhub-instance))
