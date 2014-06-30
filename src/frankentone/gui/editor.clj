@@ -311,14 +311,14 @@
 
 
 (defn a-stop [e] 
-  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool)
+  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool :strategy :kill)
   (doall (map  #(.clear (val %))
                @frankentone.instruments/instruments))
   (dsp/silence!))
 
 
 (defn a-stop-scheduled [e]
-  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool))
+  (overtone.at-at/stop-and-reset-pool! overtone.music.time/player-pool :strategy :kill))
 
 
 (defn a-open-file [path e]
