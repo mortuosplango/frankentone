@@ -4,76 +4,84 @@
   (:use [frankentone instruments utils]
         [frankentone.entropy selfmod]
         [clojure walk]
-        [overtone.music pitch time]))
+        [overtone.music pitch time rhythm]))
 
 
 (declare play-pattern)
 
+(def tempoclock (metronome 128))
 
 (def || :|)
+
+(defn- max-len
+  "Finds the length of the longest list in the collection"
+  [coll]
+  (-> (sort-by (comp count val) >
+               (into {}
+                     (filter (comp coll? val) coll)))
+      first val count))
 
 
 (defn- do-play-pattern [coll length offset default-instrument now default-amp default-pitch]
   (let [len (count coll)
-        note-length (* length (/ 1 len))]
+        note-length (* length (/ 1 len))
+        known-keys [:inst :freq :pitch :amp :sustain]]
     (doall (mapv
             (fn [inst beat]
               (let [inst (if (var? inst) @inst inst)
-                    inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)]
+                    inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)
+                    start-time (+ now offset (* beat note-length))]
                 (cond
                  (seq inst-fn)
-                 (play-note (+ now offset 0.1
-                               (* beat note-length))
+                 (play-note start-time
                             (key (first inst-fn))
-                            440.0 default-amp note-length)
+                            default-pitch default-amp note-length)
+
                  (keyword? inst)
-                 (play-note (+ now offset 0.1
-                               (* beat note-length))
-                            inst 440.0 default-amp note-length)
+                 (play-note start-time
+                            inst
+                            default-pitch default-amp note-length)
+
+                 (number? inst)
+                 (play-note start-time
+                            default-instrument (midi->hz inst) default-amp note-length)
+                 
+                 (string? inst)
+                 ;; use the string as freq argument to the synth for
+                 ;; speech synthesis
+                 (play-note start-time
+                            default-instrument inst default-amp note-length)
+                 
                  (coll? inst)
                  ;; if event-style map
                  (if (and
                       (map? inst)
-                      (some #(contains? inst %)
-                            [:inst :freq :pitch :amp :sustain]))
-                   ;; ignore unknown keys
-                   (let [inst (into {} (map #(when-let [v (get inst %)]
-                                               {% v}) [:inst :freq :pitch :amp :sustain]))]
-                     ;; if map contains seqs
-                     ;; split the map into submaps
-                     (if (some #(coll? (get inst %)) [:inst :freq :pitch :amp :sustain])
-                       (let [ ;; look for the longest list
-                             max-len (-> (sort-by (comp count val) >
-                                                  (into {}
-                                                        (filter (comp coll? val) inst)))
-                                         first val count)]
+                      (some #(contains? inst %) known-keys))
+                   ;; reject unknown keys
+                   (let [inst (into {} (map #(when-let [v (get inst %)] {% v}) known-keys))]
+                     ;; if map contains seqs split the map into submaps and play-pattern those
+                     (if (some #(coll? (get inst %)) known-keys)
+                       (let [max-len (max-len inst)]
                          (play-pattern
                           (map (fn [pos]
                                  (into {}
-                                       (map (fn [key]
-                                              (let [v (get inst key)]
-                                                (if v
-                                                  {key (if (coll? v)
-                                                         ;; cycle through the others
-                                                         (nth (cycle v)
-                                                              pos)
-                                                         v)})))
-                                            [:inst :freq :pitch :amp :sustain]))) (range max-len))
-                          note-length
-                          (+ offset (* beat note-length))
-                          default-instrument
-                          now default-amp default-pitch))
+                                       (map #(when-let [v (get inst %)]
+                                               (if (coll? v)
+                                                 ;; cycle through the others
+                                                 { key (nth (cycle v) pos) }
+                                                 { key v })) known-keys))) (range max-len))
+                          note-length (+ offset (* beat note-length))
+                          default-instrument now default-amp default-pitch))
                        ;; play only if the values of everything except
-                       ;; :inst is a number or a string
+                       ;; :inst are numbers or strings
                        (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
-                         (play-note (+ now offset 0.1
-                                       (* beat note-length))
+                         (play-note start-time
                                     (if (contains? inst :inst)
                                       (:inst inst)
                                       default-instrument)
                                     (cond
                                      (contains? inst :pitch) (midi->hz (:pitch inst))
-                                     (contains? inst :freq) (:freq inst)
+                                     (contains? inst :freq)  (:freq inst)
                                      :default default-pitch)
                                     (if (contains? inst :amp)
                                       (:amp inst)
@@ -81,18 +89,11 @@
                                     (if (contains? inst :sustain)
                                       (:sustain inst)
                                       note-length)))))
+                   ;; if just collection
                    (play-pattern inst note-length
                                  (+ offset (* beat note-length))
                                  default-instrument
                                  now default-amp default-pitch))
-                 (number? inst)
-                 (play-note (+ now offset 0.1
-                               (* beat note-length))
-                            default-instrument (midi->hz inst) default-amp note-length)
-                 (string? inst)
-                 (play-note (+ now offset 0.1
-                               (* beat note-length))
-                            default-instrument inst default-amp note-length)
                  )))
             coll (range len)))))
 
@@ -147,28 +148,33 @@
      pattern-fn
      instrument
      duration
-     running?]
+     running?
+     quant]
   clojure.lang.IFn
   (invoke [this t]
     (play-pattern (pattern-fn)
-                  duration *latency* instrument)
-    ;; (println pat-name)
+                  (* duration (/ 60.0 (metro-bpm tempoclock))) *latency* instrument
+                  (/ (tempoclock t) 1000.0))
+    (println pat-name t @running?)
     (when @running?
-      (let [next-t (+ t (* duration 1000))]
-        (apply-at next-t pat-name [next-t]))))
+      (let [next-t (+ t duration)]
+        (apply-at (tempoclock next-t) pat-name [next-t]))))
   Pattern
   (start [this]
     (when-not @running?
       (reset! running? true)
-      (this (+ (now) *latency*))))
+      (if quant
+        (this (- (tempoclock) (mod (tempoclock) quant) (* quant -2)))
+        (this (inc (tempoclock))))))
   (stop [this]
     (reset! running? false)))
 
 
 (defmacro defpat
-  ([name pattern &{ :keys [duration instrument]
-                   :or {duration 2.0
-                        instrument :default}}]
+  ([name pattern &{ :keys [duration instrument quant]
+                   :or { duration 4
+                        instrument :default
+                        quant 4}}]
      `(when (try
               ;; check if pattern works
               ~pattern
@@ -188,4 +194,5 @@
            (atom (if
                      (= (class ~name) tPattern)
                    @(.running? ~name)
-                   false)))))))
+                   false))
+           ~quant)))))
