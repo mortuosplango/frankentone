@@ -47,7 +47,7 @@
                        hpf (hpf-c)
                        lpf (lpf-c)
                        pink (pink-c)
-                       lfreq (rrand 4000.0 8000.0)
+                       lfreq (rrand (* freq 10) (* freq 20))
                        asr (asr-c 0.001 0.0 1.0 dur)
                        ]
                    (fn [_]
@@ -65,7 +65,7 @@
                        hpf (hpf-c)
                        lpf (lpf-c)
                        pink (pink-c)
-                       lfreq (rrand 1400.0 1800.0)
+                       lfreq (rrand (* freq 3.5) (* freq 4.5))
                        asr (asr-c 0.001 0.0 1.0 dur)
                        ]
                    (fn [_]
@@ -92,7 +92,7 @@
                      env
                      3.0
                      (osc 2.0 230)
-                     (* amp (hpf (lpf (white) (+ 200.0
+                     (* amp (hpf (lpf (white) (+ (* freq 0.5)
                                                  (* env 3500.0)) 1.5)
                                  30.0 1.0))))))))
 
@@ -106,12 +106,12 @@
                     osc (sin-osc-c 0.8)
                     white (white-noise-c)
                     drop1 (line-c 110.0 59.0 0.005)
-                    drop2 (line-c 1.0 0.8 0.1)
+                    drop2 (line-c (/ freq 440.0) (/ freq (/ 440.0 0.8)) 0.1)
                     env2 (line-c 1.0 0.0 0.18 )
                     asr (asr-c 0.01 0.0 1.0 dur)]
                 (fn [_]
                   (let [env (asr)
-                        env1m (midi->hz (* (drop1) (drop2)))]
+                        env1m (midi->hz (min 127.0 (* (drop1) (drop2))))]
                     (* amp
                        (hardclip
                         (* env
@@ -135,7 +135,7 @@
                     (*
                      (asr)
                      amp
-                     (Math/tanh (osc_a 3.0 (* 50 (drop)))))))))
+                     (Math/tanh (osc_a 3.0 (* (* freq 0.11) (drop)))))))))
 
 
 (definst bd (fn [freq amp dur]
@@ -145,12 +145,12 @@
                     white (white-noise-c)
                     lpf (lpf-c)
                     drop1 (line-c 110.0 59.0 0.005)
-                    drop2 (line-c 1.0 0.5 0.029)
+                    drop2 (line-c (/ freq 440.0) (/ freq 880.0) 0.029)
                     asr (asr-c 0.005 0.06 0.5 (- dur 0.065))
                     ]
                 (fn [_]
                   (let [env1 (* (drop2) (drop1))
-                        env1m (midi->hz env1)]
+                        env1m (midi->hz (min 127.0 env1))]
                     (*
                      amp
                      (hardclip
