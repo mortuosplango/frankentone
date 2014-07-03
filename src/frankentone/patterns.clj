@@ -22,7 +22,7 @@
       first val count))
 
 
-(defn- do-play-pattern [coll length offset default-instrument now default-amp default-pitch]
+(defn- do-play-pattern [coll length offset default-instrument now default-amp default-freq]
   (let [len (count coll)
         note-length (* length (/ 1 len))
         known-keys [:inst :freq :pitch :amp :sustain]]
@@ -35,12 +35,12 @@
                  (seq inst-fn)
                  (play-note start-time
                             (key (first inst-fn))
-                            default-pitch default-amp note-length)
+                            default-freq default-amp note-length)
 
                  (keyword? inst)
                  (play-note start-time
                             inst
-                            default-pitch default-amp note-length)
+                            default-freq default-amp note-length)
 
                  (number? inst)
                  (play-note start-time
@@ -71,7 +71,7 @@
                                                  { key (nth (cycle v) pos) }
                                                  { key v })) known-keys))) (range max-len))
                           note-length (+ offset (* beat note-length))
-                          default-instrument now default-amp default-pitch))
+                          default-instrument now default-amp default-freq))
                        ;; play only if the values of everything except
                        ;; :inst are numbers or strings
                        (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
@@ -82,7 +82,7 @@
                                     (cond
                                      (contains? inst :pitch) (midi->hz (:pitch inst))
                                      (contains? inst :freq)  (:freq inst)
-                                     :default default-pitch)
+                                     :default default-freq)
                                     (if (contains? inst :amp)
                                       (:amp inst)
                                       default-amp)
@@ -93,7 +93,7 @@
                    (play-pattern inst note-length
                                  (+ offset (* beat note-length))
                                  default-instrument
-                                 now default-amp default-pitch))
+                                 now default-amp default-freq))
                  )))
             coll (range len)))))
 
@@ -128,9 +128,9 @@
      (play-pattern coll length offset default-instrument (nows)))
   ([coll length offset default-instrument now]
      (play-pattern coll length offset default-instrument now 0.1 440.0))
-  ([coll length offset default-instrument now default-amp default-pitch]
+  ([coll length offset default-instrument now default-amp default-freq]
      (doall (mapv #(do-play-pattern % length offset default-instrument now
-                                    default-amp default-pitch)
+                                    default-amp default-freq)
                   (remove #(= (first %) :|)
                           (partition-by #(= % :|)
                                         (if (set? coll)
@@ -148,13 +148,16 @@
      pattern-fn
      instrument
      duration
+     amp
+     freq
      running?
      quant]
   clojure.lang.IFn
   (invoke [this t]
     (play-pattern (pattern-fn)
                   (* duration (/ 60.0 (metro-bpm tempoclock))) *latency* instrument
-                  (/ (tempoclock t) 1000.0))
+                  (/ (tempoclock t) 1000.0)
+                  amp freq)
     (println pat-name t @running?)
     (when @running?
       (let [next-t (+ t duration)]
@@ -171,10 +174,16 @@
 
 
 (defmacro defpat
-  ([name pattern &{ :keys [duration instrument quant]
+  ([name pattern &{ :keys [duration
+                           instrument
+                           quant
+                           amp
+                           freq]
                    :or { duration 4
                         instrument :default
-                        quant 4}}]
+                        quant 4
+                        amp 0.1
+                        freq 440.0}}]
      `(when (try
               ;; check if pattern works
               ~pattern
@@ -191,6 +200,8 @@
             (make-selfmod false :body-pos 2))
            ~instrument
            ~duration
+           ~amp
+           ~freq
            (atom (if
                      (= (class ~name) tPattern)
                    @(.running? ~name)
