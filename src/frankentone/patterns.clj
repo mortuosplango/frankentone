@@ -31,6 +31,27 @@
       (key (first inst)))))
 
 
+(defn- parallelize-coll [coll]
+  (remove #(= (first %) :|)
+          (partition-by #(= % :|)
+                        (if (set? coll)
+                          (interpose || coll)
+                          coll))))
+
+
+(defn- parallelize-map [coll]
+  (let [new-map
+        (into {} (map (fn [[k v]]
+                        (if (or (map? v)
+                                (string? v)
+                                (number? v)
+                                (keyword? (inst?->inst v)))
+                          {k [ v ]}
+                          {k (parallelize-coll v)}))
+                      coll))]
+    (when-not (every? #(= (count (val %)) 1) new-map)
+      new-map)))
+
 
 (defn- do-play-pattern
   [coll length offset default-inst now default-amp default-freq]
@@ -63,19 +84,24 @@
           (map? inst)
           ;; if map contains seqs split the map into
           ;; submaps and play-pattern those
-          (if (some #(coll? (get inst %)) (keys inst))
-            (play-pattern
-             (map (fn [pos]
-                    (into {}
-                          (map #(when-let [v (get inst %)]
-                                  (if (coll? v)
-                                    ;; cycle through the collections
-                                    { % (nth (cycle v) pos) }
-                                    { % v }))
-                               (keys inst))))
-                  (range (max-len inst)))
-             note-length new-offset
-             default-inst now default-amp default-freq)
+          (if (some #(coll? %) (vals inst))
+            (let [pcoll (parallelize-map inst)
+                  coll (or pcoll inst)
+                  new-map (map (fn [pos]
+                                 (into {}
+                                       (map #(when-let [v (get coll %)]
+                                               (if (coll? v)
+                                                 ;; cycle through the collections
+                                                 { % (nth (cycle v) pos) }
+                                                 { % v }))
+                                            (keys coll))))
+                               (range (max-len coll)))]
+              (play-pattern
+               (if pcoll
+                 (interpose || new-map)
+                 new-map)
+               note-length new-offset
+               default-inst now default-amp default-freq))
             ;; play only if the values of all known keys except
             ;; :inst are numbers or strings
             ;; i. e. everything else causes a break
@@ -92,14 +118,15 @@
                          default-amp)
                      (or (:sustain inst)
                          note-length)
-                     (apply dissoc inst known-keys))))
+                     (flatten (vec (apply dissoc inst known-keys))))))
           
           (coll? inst)
           ;; if just collection
           (play-pattern inst note-length
                         new-offset
                         default-inst
-                        now default-amp default-freq))))
+                        now default-amp default-freq)
+          :default '-)))
      coll (range len))))
 
 
@@ -136,13 +163,12 @@
   ([coll length offset default-inst now default-amp default-freq]
      (doall (mapv #(do-play-pattern % length offset default-inst now
                                     default-amp default-freq)
-                  (if (or (map? coll) (string? coll) (number? coll) (keyword? (inst?->inst coll)))
+                  (if (or (map? coll)
+                          (string? coll)
+                          (number? coll)
+                          (keyword? (inst?->inst coll)))
                     [[ coll ]]
-                    (remove #(= (first %) :|)
-                            (partition-by #(= % :|)
-                                          (if (set? coll)
-                                            (interpose || coll)
-                                            coll))))))))
+                    (parallelize-coll coll))))))
 
 
 (defprotocol Pattern ;; playable?
