@@ -109,7 +109,14 @@
                               (do
                                 (swap! notes dissoc new-id)
                                 0.0))))]))
-      new-id))
+      (into {:inst name
+             :id new-id
+             :freq freq
+             :amp amp
+             :dur dur
+             :start-time start-time}
+            (when varargs
+              {:varargs varargs}))))
   (setFunction [_ in-func] (set! function in-func))
   (getFunction [_] function)
   (setVolume [_ vol] (when (number? vol)
