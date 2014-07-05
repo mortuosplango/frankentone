@@ -10,14 +10,14 @@
 
 ;; when it's started, define the instrument
 (definst speak
-  (fn [freq amp dur]
-    (let [
-          spcc (mem-render-string (str freq))
+  (fn [freq amp dur & {:keys [string] :or {string "fail!"}}]
+    (let [spcc (mem-render-string (str string))
+          factor (* (/ freq 440.0) 16000.0)
           limit (double (dec (count spcc)))
-          len (/ limit 16000.0)]
+          len (/ limit factor)]
       (fn [x]
         (if (< x len)
-          (* amp (aget ^doubles spcc (min limit (* x 16000.0))))
+          (* amp (aget ^doubles spcc (min limit (* x factor))))
           0.0)))))
 
 ;; add it to the dsp function
@@ -35,7 +35,7 @@
 (start-dsp)
 
 ;; test if it's working
-(play-note (+ 0.1 (nows)) :speak "test" 0.2 2.0)
+(play-note (+ 0.1 (nows)) :speak 440.0 0.2 2.0 :string "hello")
 
 
 ;; play a pattern with it
@@ -72,8 +72,8 @@
 (instruments->dsp!)
 
 (defpat pat77 ["hello" "how" "are" "you?" :| 
-							 bd - - hh - - bd - :|
-							 (repeat 2 [- - - sn])] :instrument :speak)
+               :bd - - :hh - - :bd - :|
+               (repeat 2 [- - - :sn])] :instrument :speak)
 
 ;; start the pattern
 (start pat77)

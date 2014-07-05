@@ -744,7 +744,7 @@ Returns a function with the following arguments: [amp freq]"
                                (+ s2
                                   (* b0 s1)))))
                    (/ 1.0
-                      (+ 1.0 (* b0cubed gain))))]
+                      (inc (* b0cubed gain))))]
 
         ;; update 1st order filter states
         (set!

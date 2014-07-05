@@ -21,81 +21,83 @@
                      (filter (comp coll? val) coll)))
       first val count))
 
+(defn- inst?->inst
+  [x]
+  (if (keyword? x)
+    x
+    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %)) x) @instruments))]
+      (key (first inst)))))
 
-(defn- do-play-pattern [coll length offset default-instrument now default-amp default-freq]
+
+(defn- do-play-pattern
+  [coll length offset default-instrument now default-amp default-freq]
   (let [len (count coll)
         note-length (* length (/ 1 len))
         known-keys [:inst :freq :pitch :amp :sustain]]
-    (doall (mapv
-            (fn [inst beat]
-              (let [inst (if (var? inst) @inst inst)
-                    inst-fn (filter #(= (getFunction ^PInstrument2 (val %)) inst) @instruments)
-                    start-time (+ now offset (* beat note-length))]
-                (cond
-                 (seq inst-fn)
-                 (play-note start-time
-                            (key (first inst-fn))
-                            default-freq default-amp note-length)
+    (println "do play" coll "len" len "note-length" length)
+    (mapv
+     (fn [inst beat]
+       (let [start-time (+ now offset (* beat note-length))]
+         (cond
+          (keyword? (inst?->inst inst))
+          (play-note start-time
+                     inst
+                     default-freq default-amp note-length)
 
-                 (keyword? inst)
-                 (play-note start-time
-                            inst
-                            default-freq default-amp note-length)
+          (number? inst)
+          (play-note start-time
+                     default-instrument (midi->hz inst) default-amp note-length)
+          
+          (string? inst)
+          ;; send the string as optional argument to the
+          ;; default synth e. g. for speech synthesis
+          (play-note start-time
+                     default-instrument default-freq default-amp note-length
+                     :string inst)
 
-                 (number? inst)
-                 (play-note start-time
-                            default-instrument (midi->hz inst) default-amp note-length)
-                 
-                 (string? inst)
-                 ;; use the string as freq argument to the synth for
-                 ;; speech synthesis
-                 (play-note start-time
-                            default-instrument inst default-amp note-length)
-                 
-                 (coll? inst)
-                 ;; if event-style map
-                 (if (and
-                      (map? inst)
-                      (some #(contains? inst %) known-keys))
-                   ;; reject unknown keys
-                   (let [inst (into {} (map #(when-let [v (get inst %)] {% v}) known-keys))]
-                     ;; if map contains seqs split the map into submaps and play-pattern those
-                     (if (some #(coll? (get inst %)) known-keys)
-                       (let [max-len (max-len inst)]
-                         (play-pattern
-                          (map (fn [pos]
-                                 (into {}
-                                       (map #(when-let [v (get inst %)]
-                                               (if (coll? v)
-                                                 ;; cycle through the others
-                                                 { key (nth (cycle v) pos) }
-                                                 { key v })) known-keys))) (range max-len))
-                          note-length (+ offset (* beat note-length))
-                          default-instrument now default-amp default-freq))
-                       ;; play only if the values of everything except
-                       ;; :inst are numbers or strings
-                       (when-not (some #(not (or (string? %) (number? %))) (vals (dissoc inst :inst)))
-                         (play-note start-time
-                                    (if (contains? inst :inst)
-                                      (:inst inst)
-                                      default-instrument)
-                                    (cond
-                                     (contains? inst :pitch) (midi->hz (:pitch inst))
-                                     (contains? inst :freq)  (:freq inst)
-                                     :default default-freq)
-                                    (if (contains? inst :amp)
-                                      (:amp inst)
-                                      default-amp)
-                                    (if (contains? inst :sustain)
-                                      (:sustain inst)
-                                      note-length)))))
-                   ;; if just collection
-                   (play-pattern inst note-length
-                                 (+ offset (* beat note-length))
-                                 default-instrument
-                                 now default-amp default-freq))
-                 )))
-            coll (range len)))))
+          ;; if event-style map
+          (map? inst)
+          ;; if map contains seqs split the map into
+          ;; submaps and play-pattern those
+          (if (some #(coll? (get inst %)) (keys inst))
+            (let [max-len (max-len inst)]
+              (play-pattern
+               (map (fn [pos]
+                      (into {}
+                            (map #(when-let [v (get inst %)]
+                                    (if (coll? v)
+                                      ;; cycle through the others
+                                      { % (nth (cycle v) pos) }
+                                      { % v }))
+                                 (keys inst))))
+                    (range max-len))
+               note-length (+ offset (* beat note-length))
+               default-instrument now default-amp default-freq))
+            ;; play only if the values of all known keys except
+            ;; :inst are numbers or strings
+            ;; i. e. everything else causes a break
+            (when-not (some #(not (or (string? %) (number? %)))
+                            (vals (select-keys inst (rest known-keys))))
+              (apply play-note start-time
+                     (or (inst?->inst (:inst inst))
+                         default-instrument)
+                     (if (contains? inst :pitch)
+                       (midi->hz (:pitch inst))
+                       (or (:freq inst)
+                           default-freq))
+                     (or (:amp inst)
+                         default-amp)
+                     (or (:sustain inst)
+                         note-length)
+                     (apply dissoc inst known-keys))))
+          
+          (coll? inst)
+          ;; if just collection
+          (play-pattern inst note-length
+                        (+ offset (* beat note-length))
+                        default-instrument
+                        now default-amp default-freq))))
+     coll (range len))))
 
 
 (defn play-pattern
@@ -131,11 +133,13 @@
   ([coll length offset default-instrument now default-amp default-freq]
      (doall (mapv #(do-play-pattern % length offset default-instrument now
                                     default-amp default-freq)
-                  (remove #(= (first %) :|)
-                          (partition-by #(= % :|)
-                                        (if (set? coll)
-                                          (interpose || coll)
-                                          coll)))))))
+                  (if (map? coll)
+                    [coll]
+                    (remove #(= (first %) :|)
+                            (partition-by #(= % :|)
+                                          (if (set? coll)
+                                            (interpose || coll)
+                                            coll))))))))
 
 
 (defprotocol Pattern ;; playable?
@@ -155,7 +159,8 @@
   clojure.lang.IFn
   (invoke [this t]
     (play-pattern (pattern-fn)
-                  (* duration (/ 60.0 (metro-bpm tempoclock))) *latency* instrument
+                  (* duration (/ 60.0 (metro-bpm tempoclock)))
+                  *latency* instrument
                   (/ (tempoclock t) 1000.0)
                   amp freq)
     (println pat-name t @running?)

@@ -6,7 +6,7 @@
         overtone.music.pitch))
 
 
-(definst old-blub (fn [freq amp dur]
+(definst old-blub (fn [freq amp dur & _]
                 (let [osc (sin-osc-c 0.0)
                       asr (asr-c 0.01 0.1 0.5 (- dur 0.01 0.1))
                       square (pulsedpw-c 0.5)
@@ -20,7 +20,7 @@
                          (+ (* freq 5.0)
                             (osc-b (* freq 2.0) 4.0)) 1.5)))))))
 
-(definst blub (fn [freq amp dur]
+(definst blub (fn [freq amp dur & _]
                 (let [osc (sin-osc-c 0.0)
                       asr (asr-c 0.02 0.2 1.0 (max 0.1 (- dur 0.22)))
                       saw (sawdpw-c 0.0)
@@ -42,7 +42,7 @@
                              (osc-b 2000.0 ffreq)) 1.5))))))))
 
 
-(definst hh (fn [freq amp dur]
+(definst hh (fn [freq amp dur & _]
                  (let [
                        hpf (hpf-c)
                        lpf (lpf-c)
@@ -60,7 +60,7 @@
                                             (* env 5500.0)) 1.5)
                                     lfreq 1.0))))))))
 
-(definst chh (fn [freq amp dur]
+(definst chh (fn [freq amp dur & _]
                  (let [
                        hpf (hpf-c)
                        lpf (lpf-c)
@@ -79,7 +79,7 @@
                                     lfreq 1.0))))))))
 
 
-(definst sn (fn [freq amp dur]
+(definst sn (fn [freq amp dur & _]
               (let [
                     hpf (hpf-c)
                     lpf (lpf-c)
@@ -96,7 +96,7 @@
                                                  (* env 3500.0)) 1.5)
                                  30.0 1.0))))))))
 
-(definst sn (fn [freq amp dur]
+(definst sn (fn [freq amp dur & _]
               (let [
                     hpf (hpf-c)
                     bpf (bpf-c)
@@ -125,7 +125,7 @@
                                     6900.0 1.0)))))))))))
 
 
-(definst bd (fn [freq amp dur]
+(definst bd (fn [freq amp dur & _]
                 (let [
                       osc_a (sin-osc-c 1.4)
                       drop (line-c 3.0 1.0 0.1)
@@ -138,7 +138,7 @@
                      (Math/tanh (osc_a 3.0 (* (* freq 0.11) (drop)))))))))
 
 
-(definst bd (fn [freq amp dur]
+(definst bd (fn [freq amp dur & _]
               (let [
                     osc_a (sin-osc-c 1.4)
                     pls (pulsedpw-c 0.5)

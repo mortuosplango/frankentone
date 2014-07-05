@@ -17,15 +17,15 @@
 
 (defn rrand
   "Random value within min and max."
-  (^Double [] (rrand -1.0 1.0))
-  (^Double [range] (rrand (* -1.0 range) range))
+  (^Double [] (rrand 1.0))
+  (^Double [range] (rrand (- range) range))
   (^Double [min max]
            (+ (rand (- max min)) min)))
 
 
 (defn exp-rand
   "Random value with exponential distribution within min and max."
-  [ min-val  max-val]
+  [min-val  max-val]
   (+ (* (Math/pow (rrand 0.00001 1.0) 2.0) (- max-val min-val)) min-val))
 
 
@@ -94,7 +94,7 @@
 (defn nth-prime
   "the nth prime number."
   [n]
-  (if (= n 0)
+  (if (zero? 0)
     2
     (nth (filter
            #(.isProbablePrime (BigInteger/valueOf %) 5)

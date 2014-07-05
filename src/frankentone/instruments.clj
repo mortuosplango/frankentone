@@ -26,7 +26,7 @@
   (clear [this])
   (clear-queue [this])
   (kill-note [this id])
-  (new-note [this start-time freq amp dur])
+  (new-note [this start-time freq amp dur varargs])
   (play [this time])
   (setFunction [this function])
   (getFunction [this])
@@ -51,7 +51,7 @@
     (do (println "Bad note kernel! Is not a function!")
         false)                             
     (let [test-output (try
-                        ((note-kernel 440.0 1.0 2.0)
+                        ((note-kernel 440.0 1.0 2.0 :test 42)
                          0.0)
                         (catch Exception e
                           (str "Caught exception: "
@@ -95,10 +95,10 @@
                         (.note ^InstNote (.poll note-starts))))))))
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id))
-  (new-note [this start-time freq amp dur]
+  (new-note [this start-time freq amp dur varargs]
     (let [new-id (keyword (gensym (str name "_")))
-          kernel (note-kernel
-                  freq amp dur)]
+          kernel (apply note-kernel
+                        freq amp dur varargs)]
       (.put note-starts
             (InstNote. start-time
                        [new-id
@@ -123,22 +123,23 @@
 
 (defn play-note
   "Plays a note at the specified time with the specified parameters"
-  [time instrument frequency amplitude duration]
+  [time instrument frequency amplitude duration & args]
   (if-let [inst (get @instruments instrument)]
     (new-note inst
-              time
-              frequency
-              amplitude
-              duration)
+           time
+           frequency
+           amplitude
+           duration
+           args)
     (println "no such instrument " instrument "!")))
 
 
 (defmacro definst
   "Construct an instrument out of a note-kernel.
 
-  The note-kernel is a function that takes frequency, amplitude and
-  duration as arguments and returns a function that takes relative
-  time and produces sample values."
+  The note-kernel is a function that takes frequency, amplitude,
+  duration and optional arguments as arguments and returns a
+  function that takes relative time and produces sample values."
   ([name note-kernel]
      `(if-let [inst# (get @instruments (keyword '~name))]
         (do (.setNoteKernel ^CInstrument inst# ~note-kernel)
@@ -163,7 +164,7 @@
 
 
 (definst default 
-  (fn [freq amp dur]
+  (fn [freq amp dur & _]
     (let [lpf (lpf-c)
           saw1 (sawdpw-c 0.0)
           saw2 (sawdpw-c 0.0)

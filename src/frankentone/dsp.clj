@@ -104,12 +104,11 @@
                           (object-array [JSTimingMode/Estimated]))
                          naudio-client)]
     (if (or (nil? @dsp-thread) (not (.isAlive ^Thread @dsp-thread)))
-      (do
+      (let [thread (Thread. #(.run naudio-server))]
         (reset! audio-server naudio-server)
-        (let [thread (Thread. #(.run naudio-server))]
-          (.setPriority thread Thread/MAX_PRIORITY)
-          (.start thread)
-          (reset! dsp-thread thread)))
+        (.setPriority thread Thread/MAX_PRIORITY)
+        (.start thread)
+        (reset! dsp-thread thread))
       (prn "dsp already running!"))))
 
 
@@ -150,7 +149,7 @@
           (if (< (inc i) *num-channels*)
             (recur (inc i))
             (do (reset! *dsp-fun* new-dsp-fn)
-                (if (and @audio-server (.isActive @audio-server))
+                (when (and @audio-server (.isActive @audio-server))
                   (.setFunc @audio-client new-dsp-fn))
                 true)))))
     (do (println "Can't reset! Is not a function!")

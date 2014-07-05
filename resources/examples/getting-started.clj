@@ -101,7 +101,7 @@
 ;; want to play a different instrument?
 ;; first write your own instrument
 (definst my-inst 
-  (fn [freq amp dur]
+  (fn [freq amp dur & _]
     (fn [time]
       (* amp (mod time 1.0) (saw time freq )))))
 
@@ -116,7 +116,6 @@
 ;; and then play it
 (play-pattern [60 - 62 64 68 :|
                36 38] 2.0 0.5 :my-inst)
-
 
 ;; play the pattern repeatedly
 (defn pat [t]

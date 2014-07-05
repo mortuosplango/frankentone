@@ -316,7 +316,7 @@
                                    0.0))))))]
      (selfmod-cb-fn# (first (:population first-gen#)))
      (when-not (contains? @instruments (keyword ~instname))
-       (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
+       (eval (conj '((fn [x# y# z# & a#] (fn [x#] 0.0)))
                    (symbol ~instname) 'definst)))
      (when-let [inst# (get @instruments (keyword ~instname))]
        (setNoteKernel inst#
@@ -354,7 +354,7 @@
                      :functions dsp-functions+ugens
                      )
          pg->inst-fn# (fn [best# len#]
-                          (fn [freq# amp# dur#]
+                          (fn [freq# amp# dur# & args#]
                             (let [prev-samp# (atom 0.0)
                                   val-func# (program->fn-c best#)
                                   mul-x# (/ freq# 440.0)]
@@ -364,7 +364,7 @@
                                   0.0)))))]
      (selfmod-cb-fn# (first (:population first-gen#)))
      (when-not (contains? @instruments (keyword ~instname))
-       (eval (conj '((fn [x# y# z#] (fn [x#] 0.0)))
+       (eval (conj '((fn [x# y# z# & a#] (fn [x#] 0.0)))
                    (symbol ~instname) 'definst)))
      (when-let [inst# (get @instruments (keyword ~instname))]
        (setNoteKernel inst#
