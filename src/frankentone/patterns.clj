@@ -25,62 +25,65 @@
   [x]
   (if (keyword? x)
     x
-    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %)) x) @instruments))]
+    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
+                                     (if (var? x) @x x))
+                                 @instruments))]
       (key (first inst)))))
 
 
+
 (defn- do-play-pattern
-  [coll length offset default-instrument now default-amp default-freq]
+  [coll length offset default-inst now default-amp default-freq]
   (let [len (count coll)
         note-length (* length (/ 1 len))
         known-keys [:inst :freq :pitch :amp :sustain]]
-    (println "do play" coll "len" len "note-length" length)
     (mapv
      (fn [inst beat]
-       (let [start-time (+ now offset (* beat note-length))]
+       (let [new-offset (+ offset (* beat note-length))
+             note-start (+ now new-offset)
+             inst-key (inst?->inst inst)]
          (cond
-          (keyword? (inst?->inst inst))
-          (play-note start-time
-                     inst
+          (keyword? inst-key)
+          (play-note note-start
+                     inst-key
                      default-freq default-amp note-length)
 
           (number? inst)
-          (play-note start-time
-                     default-instrument (midi->hz inst) default-amp note-length)
+          (play-note note-start default-inst
+                     (midi->hz inst)
+                     default-amp note-length)
           
           (string? inst)
           ;; send the string as optional argument to the
           ;; default synth e. g. for speech synthesis
-          (play-note start-time
-                     default-instrument default-freq default-amp note-length
+          (play-note note-start default-inst default-freq default-amp note-length
                      :string inst)
 
-          ;; if event-style map
+          ;; if SuperCollider event-style map
           (map? inst)
           ;; if map contains seqs split the map into
           ;; submaps and play-pattern those
           (if (some #(coll? (get inst %)) (keys inst))
-            (let [max-len (max-len inst)]
-              (play-pattern
-               (map (fn [pos]
-                      (into {}
-                            (map #(when-let [v (get inst %)]
-                                    (if (coll? v)
-                                      ;; cycle through the others
-                                      { % (nth (cycle v) pos) }
-                                      { % v }))
-                                 (keys inst))))
-                    (range max-len))
-               note-length (+ offset (* beat note-length))
-               default-instrument now default-amp default-freq))
+            (play-pattern
+             (map (fn [pos]
+                    (into {}
+                          (map #(when-let [v (get inst %)]
+                                  (if (coll? v)
+                                    ;; cycle through the collections
+                                    { % (nth (cycle v) pos) }
+                                    { % v }))
+                               (keys inst))))
+                  (range (max-len inst)))
+             note-length new-offset
+             default-inst now default-amp default-freq)
             ;; play only if the values of all known keys except
             ;; :inst are numbers or strings
             ;; i. e. everything else causes a break
             (when-not (some #(not (or (string? %) (number? %)))
                             (vals (select-keys inst (rest known-keys))))
-              (apply play-note start-time
+              (apply play-note note-start
                      (or (inst?->inst (:inst inst))
-                         default-instrument)
+                         default-inst)
                      (if (contains? inst :pitch)
                        (midi->hz (:pitch inst))
                        (or (:freq inst)
@@ -94,8 +97,8 @@
           (coll? inst)
           ;; if just collection
           (play-pattern inst note-length
-                        (+ offset (* beat note-length))
-                        default-instrument
+                        new-offset
+                        default-inst
                         now default-amp default-freq))))
      coll (range len))))
 
@@ -126,15 +129,15 @@
      (play-pattern coll length 0.0))
   ([coll length offset]
      (play-pattern coll length offset :default))
-  ([coll length offset default-instrument]
-     (play-pattern coll length offset default-instrument (nows)))
-  ([coll length offset default-instrument now]
-     (play-pattern coll length offset default-instrument now 0.1 440.0))
-  ([coll length offset default-instrument now default-amp default-freq]
-     (doall (mapv #(do-play-pattern % length offset default-instrument now
+  ([coll length offset default-inst]
+     (play-pattern coll length offset default-inst (nows)))
+  ([coll length offset default-inst now]
+     (play-pattern coll length offset default-inst now 0.1 440.0))
+  ([coll length offset default-inst now default-amp default-freq]
+     (doall (mapv #(do-play-pattern % length offset default-inst now
                                     default-amp default-freq)
-                  (if (map? coll)
-                    [coll]
+                  (if (or (map? coll) (string? coll) (number? coll) (keyword? (inst?->inst coll)))
+                    [[ coll ]]
                     (remove #(= (first %) :|)
                             (partition-by #(= % :|)
                                           (if (set? coll)
@@ -163,7 +166,6 @@
                   *latency* instrument
                   (/ (tempoclock t) 1000.0)
                   amp freq)
-    (println pat-name t @running?)
     (when @running?
       (let [next-t (+ t duration)]
         (apply-at (tempoclock next-t) pat-name [next-t]))))
@@ -179,13 +181,13 @@
 
 
 (defmacro defpat
-  ([name pattern &{ :keys [duration
-                           instrument
+  ([name pattern &{ :keys [dur
+                           inst
                            quant
                            amp
                            freq]
-                   :or { duration 4
-                        instrument :default
+                   :or { dur 4
+                        inst :default
                         quant 4
                         amp 0.1
                         freq 440.0}}]
@@ -203,8 +205,8 @@
             ~(str "defpat " name " ")
             [] ~pattern false
             (make-selfmod false :body-pos 2))
-           ~instrument
-           ~duration
+           ~inst
+           ~dur
            ~amp
            ~freq
            (atom (if

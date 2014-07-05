@@ -73,7 +73,7 @@
 
 (defpat pat77 ["hello" "how" "are" "you?" :| 
                :bd - - :hh - - :bd - :|
-               (repeat 2 [- - - :sn])] :instrument :speak)
+               (repeat 2 [- - - :sn])] :inst :speak)
 
 ;; start the pattern
 (start pat77)
