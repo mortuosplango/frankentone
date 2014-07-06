@@ -347,9 +347,9 @@
                 (do
                   (a-open-file resource nil)
                   (scroll! editor
-                           :to [:line (max 0 (dec (:line (meta v))))])
-                  (status! "Couldn't open source file " sourcefile
-                           " for " (str v) ".")))))
+                           :to [:line (max 0 (dec (:line (meta v))))]))
+                (status! "Couldn't open source file " sourcefile
+                         " for " (str v) "."))))
           (status! "Couldn't find source for " (str v) "."))
         (status! "Couldn't find source for " (.getLexeme to-look-up) ".")))))
 
