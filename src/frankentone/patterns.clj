@@ -21,14 +21,6 @@
                      (filter (comp coll? val) coll)))
       first val count))
 
-(defn- inst?->inst
-  [x]
-  (if (keyword? x)
-    x
-    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
-                                     (if (var? x) @x x))
-                                 @instruments))]
-      (key (first inst)))))
 
 
 (defn- parallelize-coll [coll]

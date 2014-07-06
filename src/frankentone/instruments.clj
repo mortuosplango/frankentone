@@ -6,6 +6,16 @@
   (:import [java.util.concurrent PriorityBlockingQueue]
            [java.lang Comparable]))
 
+(defn inst?->inst
+  "Returns a keyword for an instrument function."
+  [x]
+  (if (keyword? x)
+    x
+    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
+                                     (if (var? x) @x x))
+                                 @instruments))]
+      (key (first inst)))))
+
 
 (def instruments
   "Map of all registered instruments."
@@ -30,6 +40,7 @@
   (play [this time])
   (setFunction [this function])
   (getFunction [this])
+  (setEFXFunction [this function])
   (setVolume [this vol])
   (getVolume [this])
   (setNoteKernel [this function])
@@ -74,25 +85,27 @@
      notes
      ^:volatile-mutable ^Double volume
      ^:volatile-mutable function
+     ^:volatile-mutable efx-function
      ^:volatile-mutable note-kernel]
 
   PInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
-  (play ^double [_ current-time] 
-    (reduce-notes
-     current-time
-     (if-not (note-due? note-starts current-time)
-       @notes
-       (swap! notes
-              #(apply merge %
-                      (.note ^InstNote (.poll note-starts))
-                      (for [starts note-starts
-                            :while (<= (.scheduled-time
-                                        ^InstNote starts)
-                                       current-time)]
-                        (.note ^InstNote (.poll note-starts))))))))
+  (play ^double [_ current-time]
+    (efx-function
+     (reduce-notes
+      current-time
+      (if-not (note-due? note-starts current-time)
+        @notes
+        (swap! notes
+               #(apply merge %
+                       (.note ^InstNote (.poll note-starts))
+                       (for [starts note-starts
+                             :while (<= (.scheduled-time
+                                         ^InstNote starts)
+                                        current-time)]
+                         (.note ^InstNote (.poll note-starts)))))))))
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id))
   (new-note [this start-time freq amp dur varargs]
@@ -117,21 +130,23 @@
              :start-time start-time}
             (when varargs
               {:varargs varargs}))))
-  (setFunction [_ in-func] (set! function in-func))
+  (setFunction [_ f] (set! function f))
   (getFunction [_] function)
+  (setEFXFunction [_ f] (when (fn? f)
+                                (set! efx-function f)))
   (setVolume [_ vol] (when (number? vol)
                        (set! volume (double vol))))
   (getVolume [_] volume)
-  (setNoteKernel [_ in-func]
-    (when (kernel-good? in-func)
-      (set! note-kernel in-func)))
+  (setNoteKernel [_ f]
+    (when (kernel-good? f)
+      (set! note-kernel f)))
   (getNoteKernel [_] note-kernel))
 
 
 (defn play-note
   "Plays a note at the specified time with the specified parameters"
   [time instrument frequency amplitude duration & args]
-  (if-let [inst (get @instruments instrument)]
+  (if-let [inst (get @instruments (inst?->inst instrument))]
     (new-note inst
            time
            frequency
@@ -139,6 +154,20 @@
            duration
            args)
     (println "no such instrument " instrument "!")))
+
+
+(defn set-efx
+  "Set effects function for the given instrument.
+
+  Effects function takes one input (the current sample).
+
+  Removes effects if not given a function"
+  ([instrument] (set-efx instrument identity))
+  ([instrument f]
+     (if-let [inst (get @instruments (inst?->inst instrument))]
+       (setEFXFunction inst
+                       f)
+       (println "no such instrument " instrument "!"))))
 
 
 (defmacro definst
@@ -161,6 +190,8 @@
                                           1.0
                                           ;; dsp-function
                                           nil
+                                          ;; efx-function
+                                          identity
                                           ~note-kernel)
                 fn# (fn ^double [time#] (.play ^CInstrument instrument# time#))]
             (.setFunction instrument# fn#)
@@ -209,10 +240,17 @@ Sum all instruments except the :bd instrument:
    0.0 coll))
 
 
+(def global-efx
+  "Effects function used in instruments->dsp!.
+
+  Effects function takes one input (the current sample)."
+    (atom identity))
+
 (defn instruments->dsp!
   "Resets the dsp function to play all registered instruments."
   []
   (reset-dsp!
    (dup!
     (fn [t]
-      (reduce-instruments @instruments t)))))
+      (@global-efx
+       (reduce-instruments @instruments t))))))
