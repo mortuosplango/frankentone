@@ -6,16 +6,6 @@
   (:import [java.util.concurrent PriorityBlockingQueue]
            [java.lang Comparable]))
 
-(defn inst?->inst
-  "Returns a keyword for an instrument function."
-  [x]
-  (if (keyword? x)
-    x
-    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
-                                     (if (var? x) @x x))
-                                 @instruments))]
-      (key (first inst)))))
-
 
 (def instruments
   "Map of all registered instruments."
@@ -141,6 +131,17 @@
     (when (kernel-good? f)
       (set! note-kernel f)))
   (getNoteKernel [_] note-kernel))
+
+
+(defn inst?->inst
+  "Returns a keyword for an instrument function."
+  [x]
+  (if (keyword? x)
+    x
+    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
+                                     (if (var? x) @x x))
+                                 @instruments))]
+      (key (first inst)))))
 
 
 (defn play-note
