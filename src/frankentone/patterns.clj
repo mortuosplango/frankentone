@@ -30,14 +30,13 @@
                           (interpose || coll)
                           coll))))
 
+(parallelize-coll [330 || 1110 || -])
 
 (defn- parallelize-map [coll]
   (let [new-map
         (into {} (map (fn [[k v]]
                         (if (or (map? v)
-                                (string? v)
-                                (number? v)
-                                (keyword? (inst?->inst v)))
+                                (not (coll? v)))
                           {k [ v ]}
                           {k (parallelize-coll v)}))
                       coll))]
@@ -97,8 +96,9 @@
             ;; play only if the values of all known keys except
             ;; :inst are numbers or strings
             ;; i. e. everything else causes a break
-            (when-not (some #(not (or (string? %) (number? %)))
-                            (vals (select-keys inst (rest known-keys))))
+            (if-not (or (some #(not (or (string? %) (number? %)))
+                              (vals (select-keys inst (rest known-keys))))
+                        (some #(= - %) (vals inst)))
               (apply play-note note-start
                      (or (inst?->inst (:inst inst))
                          default-inst)
@@ -110,7 +110,8 @@
                          default-amp)
                      (or (:sustain inst)
                          note-length)
-                     (flatten (vec (apply dissoc inst known-keys))))))
+                     (flatten (vec (apply dissoc inst known-keys))))
+              '-))
           
           (coll? inst)
           ;; if just collection
@@ -156,9 +157,7 @@
      (doall (mapv #(do-play-pattern % length offset default-inst now
                                     default-amp default-freq)
                   (if (or (map? coll)
-                          (string? coll)
-                          (number? coll)
-                          (keyword? (inst?->inst coll)))
+                          (not (coll? coll)))
                     [[ coll ]]
                     (parallelize-coll coll))))))
 
