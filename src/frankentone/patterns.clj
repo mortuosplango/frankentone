@@ -48,7 +48,7 @@
   [coll length offset default-inst now default-amp default-freq]
   (let [len (count coll)
         note-length (* length (/ 1 len))
-        known-keys [:inst :freq :pitch :amp :sustain]]
+        known-keys [:inst :freq :pitch :degree :amp :sustain :legato :dur]]
     (mapv
      (fn [inst beat]
        (let [new-offset (+ offset (* beat note-length))
@@ -102,14 +102,18 @@
               (apply play-note note-start
                      (or (inst?->inst (:inst inst))
                          default-inst)
-                     (if (contains? inst :pitch)
-                       (midi->hz (:pitch inst))
+                     (if (or (contains? inst :pitch)
+                             (contains? inst :degree))
+                       (midi->hz (or
+                                  ()
+                                  (:pitch inst)))
                        (or (:freq inst)
                            default-freq))
                      (or (:amp inst)
                          default-amp)
                      (or (:sustain inst)
-                         note-length)
+                         (* (or (:dur inst) note-length)
+                            (or (:legato inst) 1.0)))
                      (flatten (vec (apply dissoc inst known-keys))))
               '-))
           
