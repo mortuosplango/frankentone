@@ -28,7 +28,7 @@
   wrapped."
   ^double [x] (hiphip.double/aget buffer (* (pmod x 1.0) (dec *sample-rate*))))
 
-(defn plfsaw [freq phase] 
+(defn plfsaw [freq phase]
   (+ 1.0 (* (pmod phase (pd 1.0 freq)) -2.0 freq)))
 
 
@@ -141,7 +141,7 @@
                                                                         1024 0.25)
                                                           (:rms ref-data)))))
                                   0.0)
-                            
+
                             spf ;; penalize noisyness
                             (if (some #{:spf} features)
                               (* 100.0
@@ -176,7 +176,7 @@
                                               (- (Math/abs x)
                                                  (Math/abs y))
                                               2.0)
-                                             z))) 
+                                             z)))
                                        candidate-fft
                                        (:fft ref-data)
                                        (:fft-weights ref-data)))
@@ -195,7 +195,7 @@
                                             (Math/pow
                                              (- candidate
                                                 ref)
-                                             2.0)))) 
+                                             2.0))))
                                         (mfcc candidate-fft
                                               (:mfcc-coefs ref-data))
                                         (:mfcc ref-data))))
@@ -305,7 +305,7 @@
                      :terminals dsp-terminals
                      :functions dsp-functions)
          pg->inst-fn# (fn [best# len#]
-                          (fn [freq# amp# dur#]
+                          (fn [freq# amp# dur# & args#]
                             (binding [buffer (double-array *sample-rate* 0.0)]
                              (let [prev-samp# (atom 0.0)
                                    val-func# (program->fn best#)
