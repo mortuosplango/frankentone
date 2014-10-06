@@ -4,25 +4,39 @@
 (ns frankentone.entropy.entropy
   (:use clojure.walk))
 
+(declare inverse-uniform-mutation)
+
 (def mutation-rate
-  "Maximum amount of change applied each time an Entropy data type is accessed."
+  "Maximum amount of change applied each time an Entropy data type is
+  accessed."
   (atom 2.0))
+
+(def mutation-fn
+  "Defines the function to run for every mutation"
+  (atom inverse-uniform-mutation))
+
+
+(defn inverse-uniform-mutation
+  "Given a number x, returns a number modified by a random amount
+  inverse uniformly distributed between -mutation-rate and
+  mutation-rate."
+  [x]
+  (let [mutate-amount (inc (rand-int 254))
+        is-negative? (rand-nth [true false])
+        change-amount (if is-negative?
+                        (- (/ @mutation-rate
+                              (double mutate-amount)))
+                        (/ @mutation-rate
+                           (double mutate-amount)))]
+    (+ x change-amount)))
+
 
 (defn make-real
   "Returns an entropy floating point number."
   ([initial-value]
      (let [value (atom (double initial-value))]
        (fn []
-         (swap! value
-                #(let [mutate-amount (inc (rand-int 254))
-                       is-negative? (rand-nth [true false])
-                       change-amount (if is-negative?
-                                       (- 0
-                                          (/ @mutation-rate
-                                             (double mutate-amount)))
-                                       (/ @mutation-rate
-                                          (double mutate-amount)))]
-                   (+ % change-amount))))))
+         (swap! value @mutation-fn))))
   ([initial-value callback-fn]
      (let [value (make-real initial-value)]
        (fn []
