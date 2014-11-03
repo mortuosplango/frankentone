@@ -4,16 +4,11 @@
 (ns frankentone.entropy.entropy
   (:use clojure.walk))
 
-(declare inverse-uniform-mutation)
 
 (def mutation-rate
   "Maximum amount of change applied each time an Entropy data type is
   accessed."
   (atom 2.0))
-
-(def mutation-fn
-  "Defines the function to run for every mutation"
-  (atom inverse-uniform-mutation))
 
 
 (defn inverse-uniform-mutation
@@ -29,6 +24,11 @@
                         (/ @mutation-rate
                            (double mutate-amount)))]
     (+ x change-amount)))
+
+
+(def mutation-fn
+  "Defines the function to run for every mutation"
+  (atom inverse-uniform-mutation))
 
 
 (defn make-real

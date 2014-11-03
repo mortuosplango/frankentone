@@ -39,7 +39,7 @@ options can be kept under `:disabled`."
        (vec (set (concat (get JVMOPTS :any)
                          (get JVMOPTS os))))))
 
-(defproject frankentone "0.1.0-SNAPSHOT"
+(defproject frankentone "0.2.0-SNAPSHOT"
   :description "Experimental library for live coding."
   :url "https://github.com/mortuosplango/frankentone"
   :license {:name "GNU General Public License 3"

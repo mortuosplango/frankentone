@@ -143,3 +143,12 @@
 
 ;; redefine the function to stop the repetition
 (defn pat2 [_ _])
+
+;; use defpat to define a pattern
+;; it uses play-pattern and the entropy library internally
+ 
+(defpat pat3 [30 40 50])
+
+(start pat3)
+
+(stop pat3)

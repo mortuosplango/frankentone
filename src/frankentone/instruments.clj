@@ -78,7 +78,7 @@
      ^:volatile-mutable efx-function
      ^:volatile-mutable note-kernel]
 
-  PInstrument
+  frankentone.instruments/PInstrument
   (clear [_] 
     (reset! notes {})
     (.clear note-starts))
@@ -93,9 +93,9 @@
                        (.note ^InstNote (.poll note-starts))
                        (for [starts note-starts
                              :while (<= (.scheduled-time
-                                         ^InstNote starts)
+                                         ^frankentone.instruments.InstNote starts)
                                         current-time)]
-                         (.note ^InstNote (.poll note-starts)))))))))
+                         (.note ^frankentone.instruments.InstNote (.poll note-starts)))))))))
   (clear-queue [_] (.clear note-starts))
   (kill-note [_ id] (swap! notes dissoc id))
   (new-note [this start-time freq amp dur varargs]
@@ -103,7 +103,7 @@
           kernel (apply note-kernel
                         freq amp dur varargs)]
       (.put note-starts
-            (InstNote. start-time
+            (frankentone.instruments.InstNote. start-time
                        [new-id
                         (fn ^double [time]
                           (let [rel-time (- time start-time)]
@@ -138,7 +138,7 @@
   [x]
   (if (keyword? x)
     x
-    (when-let [inst (seq (filter #(= (getFunction ^PInstrument2 (val %))
+    (when-let [inst (seq (filter #(= (getFunction ^PInstrument (val %))
                                      (if (var? x) @x x))
                                  @instruments))]
       (key (first inst)))))
@@ -179,10 +179,10 @@
   function that takes relative time and produces sample values."
   ([name note-kernel]
      `(if-let [inst# (get @instruments (keyword '~name))]
-        (do (.setNoteKernel ^CInstrument inst# ~note-kernel)
-            (def ~name (.getFunction ^CInstrument inst#)))
+        (do (.setNoteKernel ^frankentone.instruments.CInstrument inst# ~note-kernel)
+            (def ~name (.getFunction ^frankentone.instruments.CInstrument inst#)))
         (when (kernel-good? ~note-kernel)
-          (let [instrument# (CInstrument. '~name
+          (let [instrument# (frankentone.instruments.CInstrument. '~name
                                           ;; note-starts
                                           (PriorityBlockingQueue.) 
                                           ;; notes
@@ -194,7 +194,7 @@
                                           ;; efx-function
                                           identity
                                           ~note-kernel)
-                fn# (fn ^double [time#] (.play ^CInstrument instrument# time#))]
+                fn# (fn ^double [time#] (.play ^frankentone.instruments.CInstrument instrument# time#))]
             (.setFunction instrument# fn#)
             (def ~name fn#)
             (swap! instruments
@@ -237,7 +237,7 @@ Sum all instruments except the :bd instrument:
   (reduce-kv
    (fn [val _ inst]
      (+ val
-        (.play ^CInstrument inst t)))
+        (.play ^frankentone.instruments.CInstrument inst t)))
    0.0 coll))
 
 

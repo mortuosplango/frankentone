@@ -4,7 +4,8 @@
   (:use [frankentone instruments utils]
         [frankentone.entropy selfmod]
         [clojure walk]
-        [overtone.music pitch time rhythm]))
+        [overtone.music pitch time rhythm])
+  (:require [frankentone.entropy entropy]))
 
 
 (declare play-pattern)
