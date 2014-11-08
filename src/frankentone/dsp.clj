@@ -67,7 +67,9 @@
             inputs
             [output-l output-r] num-frames]
     (when (zero? current-time)
-      (set! current-time (* time 1E-9))
+      (set! current-time (nows))        ; not very accurate, but has to do right now
+                                        ; as jaudiolibs doesn't provide the current
+                                        ; time anymore
       (set! output-buffers [output-l output-r])
       (future (reset! audio-client this)))
     (hip/dotimes-int [i num-frames]
@@ -101,7 +103,7 @@
                           *num-channels*        ;; output channels
                           *default-buffer-size* ;;buffer size
                           true ;; is buffer size fixed?
-                          (object-array [JSTimingMode/Estimated]))
+                          (object-array [JSTimingMode/FramePosition]))
                          naudio-client)]
     (if (or (nil? @dsp-thread) (not (.isAlive ^Thread @dsp-thread)))
       (let [thread (Thread. #(.run naudio-server))]
