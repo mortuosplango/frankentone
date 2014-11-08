@@ -504,7 +504,11 @@
                              (action :handler
                                      (partial a-open-file
                                               (clojure.java.io/resource (str expath "genetic/defgen.clj")))
-                                     :name "Genetic programming example")]))])))
+                                     :name "Genetic programming example")
+                             (action :handler
+                                     (partial a-open-file
+                                              (clojure.java.io/resource (str expath "thesis-examples.clj")))
+                                     :name "Thesis examples")]))])))
 
 
 (defn run []
