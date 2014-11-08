@@ -171,6 +171,14 @@
        (println "no such instrument " instrument "!"))))
 
 
+(defn set-vol
+  "Set volume for the given instrument."
+  [instrument v]
+  (if-let [inst (get @instruments (inst?->inst instrument))]
+    (setVolume inst v)
+    (println "no such instrument " instrument "!")))
+
+
 (defmacro definst
   "Construct an instrument out of a note-kernel.
 
