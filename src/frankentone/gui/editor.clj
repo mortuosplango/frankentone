@@ -508,7 +508,13 @@
                              (action :handler
                                      (partial a-open-file
                                               (clojure.java.io/resource (str expath "thesis-examples.clj")))
-                                     :name "Thesis examples")]))])))
+                                     :name "Thesis examples")
+                             (separator)
+                             (action :handler
+                                     (partial a-open-file
+                                              (clojure.java.io/resource (str expath "bitwise.clj")))
+                                     :name "Bitwise operators example")
+                             ]))])))
 
 
 (defn run []
