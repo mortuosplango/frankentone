@@ -12,8 +12,8 @@
 (def ^:dynamic *port* 59125)
 (def ^:dynamic *input-type* "TEXT")
 (def ^:dynamic *audio-type* "AU")
-(def ^:dynamic *locale* "en_GB")
-(def ^:dynamic *voice-name* "dfki-spike-hsmm")
+(def ^:dynamic *locale* "en_US")
+(def ^:dynamic *voice-name* "cmu-slt-hsmm")
 (def ^:dynamic *style* "")
 (def ^:dynamic *effects* "")
 
