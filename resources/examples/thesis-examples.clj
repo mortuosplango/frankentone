@@ -108,12 +108,12 @@
 (play-pattern [bd [69 69]])
 
 ;; cycling:
-(play-pattern [{:inst [default bd] :freq [440.0 550.0 660.0]}])
+(play-pattern {:inst [default bd] :freq [440.0 550.0 660.0]})
 ;; equivalent to:
 (play-pattern [{:inst default :freq 440.0} {:inst bd :freq 550.0 } {:inst default :freq 660.0}])
 
 ;; parallelism:
-(play-pattern [{:inst [default bd] :freq [440.0 || 550.0 660.0 770.0]}])
+(play-pattern {:inst [default bd] :freq [440.0 || 550.0 660.0 770.0]})
 ;; equivalent to:
 (play-pattern [[{:inst default :freq 440.0} {:inst bd :freq 440.0 }] ||
 		[{:inst default :freq 550.0} {:inst bd :freq 660.0} {:inst default :freq 770.0}]])
